@@ -1,0 +1,62 @@
+Backtest period: 2003-03-31 ~ 2026-08-07 (281 monthly decisions, 72 position changes)
+
+metric                    Strategy (gross)   Strategy (net 30bp)     SPY B&H
+CAGR                                 0.236                 0.213       0.119
+Vol                                  0.194                 0.194       0.185
+Sharpe                               1.191                 1.095       0.698
+MaxDD                               -0.237                -0.245      -0.552
+End equity ($1 start)              140.184                91.165      13.634
+
+All figures above are computed from the daily return path (correct way to measure risk).
+
+Total turnover: 143.0x notional over 72 changes (23.3 yrs) -> at 30bp/unit traded, cumulative cost drag = 34.97%
+
+Cost sensitivity (one-way bp charged per unit of notional traded):
+cost (bp)         CAGR    End equity
+0               23.61%         140.2
+0.3             23.59%         139.6
+1               23.53%         138.2
+5               23.23%         130.5
+10              22.85%         121.5
+30              21.35%          91.2
+50              19.86%          68.3
+100             16.18%          33.1
+
+Yearly returns (first/last year partial):
+year        Strategy         SPY      Excess
+2003           45.5%       29.9%       15.6%
+2004           33.9%       10.7%       23.2%
+2005           29.3%        4.8%       24.5%
+2006           35.8%       15.8%       19.9%
+2007           35.8%        5.1%       30.7%
+2008           -3.2%      -36.8%       33.6%
+2009           26.2%       26.4%       -0.1%
+2010           11.9%       15.1%       -3.1%
+2011           -3.7%        1.9%       -5.6%
+2012           14.7%       16.0%       -1.3%
+2013           29.6%       32.3%       -2.7%
+2014           17.8%       13.5%        4.4%
+2015            0.2%        1.2%       -1.0%
+2016           16.3%       12.0%        4.3%
+2017           34.3%       21.7%       12.6%
+2018            4.4%       -4.6%        9.0%
+2019           28.6%       31.2%       -2.6%
+2020           34.8%       18.3%       16.5%
+2021           33.8%       28.7%        5.1%
+2022           38.7%      -18.2%       56.9%
+2023           35.3%       26.2%        9.1%
+2024           21.4%       24.9%       -3.5%
+2025           21.5%       17.7%        3.7%
+2026           24.6%       14.0%       10.6%
+
+Years beating SPY: 16/24 (67%)
+Total return vs SPY over full period: 928%
+CAGR excess vs SPY: 11.8pp/yr
+
+Regime distribution (months):
+  growth_on=True  inflation_on=False -> ['XLK']: 132
+  growth_on=True  inflation_on=True  -> ['XLE']: 98
+  growth_on=False inflation_on=False -> ['XLP', 'IEF']: 35
+  growth_on=False inflation_on=True  -> ['XLU']: 16
+
+saved backtest_positions, backtest_equity, backtest_yearly, backtest_weights, backtest_daily_returns, backtest_turnover_events tables to db
