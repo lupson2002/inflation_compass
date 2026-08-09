@@ -74,6 +74,60 @@ def compute_signals(prices, t5yie):
     return signals, returns
 
 
+def compute_signal_details(prices, t5yie):
+    """마지막(최신) 데이터 기준 신호 판정의 구성요소를 반환.
+
+    Returns dict: level_on, breakeven_momentum_on, asset_momentum_on,
+    inflation_on, growth_on, t5yie_now, t5yie_60ago, indicator_slope,
+    indicator, pos_basket_ret, neg_basket_ret, pos_contrib, neg_contrib.
+    """
+    returns = prices.pct_change()
+
+    spy_sma200 = prices["SPY"].rolling(200).mean()
+    growth_on = bool(prices["SPY"].iloc[-1] > spy_sma200.iloc[-1])
+
+    pos_ret = sum(returns[t] * w for t, w in POS_BASKET.items())
+    neg_ret = sum(returns[t] * w for t, w in NEG_BASKET.items())
+    basket_valid = pos_ret.notna() & neg_ret.notna()
+    pos_cum = (1 + pos_ret.where(basket_valid, 0)).cumprod().where(basket_valid)
+    neg_cum = (1 + neg_ret.where(basket_valid, 0)).cumprod().where(basket_valid)
+    indicator = pos_cum / neg_cum
+    slope = rolling_slope(indicator, 60)
+
+    # 최근 60거래일 누적수익률(가중 기여) — 지표 구성요소 시각화용
+    recent = returns.iloc[-60:]
+    pos_contrib = {t: float((1 + recent[t].fillna(0)).prod() - 1) for t in POS_BASKET}
+    neg_contrib = {t: float((1 + recent[t].fillna(0)).prod() - 1) for t in NEG_BASKET}
+    pos_basket_ret = float((1 + pos_ret.iloc[-60:].fillna(0)).prod() - 1)
+    neg_basket_ret = float((1 + neg_ret.iloc[-60:].fillna(0)).prod() - 1)
+
+    t5 = t5yie.reindex(prices.index).ffill()
+    t5_now = float(t5.iloc[-1])
+    t5_60ago = float(t5.shift(60).iloc[-1])
+
+    level_on = t5_now > 2.0
+    breakeven_momentum_on = t5_now > t5_60ago
+    asset_momentum_on = bool(slope.iloc[-1] > 0)
+    inflation_on = level_on and (breakeven_momentum_on or asset_momentum_on)
+
+    return {
+        "level_on": level_on,
+        "breakeven_momentum_on": breakeven_momentum_on,
+        "asset_momentum_on": asset_momentum_on,
+        "inflation_on": inflation_on,
+        "growth_on": growth_on,
+        "t5yie_now": t5_now,
+        "t5yie_60ago": t5_60ago,
+        "indicator_slope": float(slope.iloc[-1]),
+        "indicator": float(indicator.iloc[-1]),
+        "indicator_60ago": float(indicator.iloc[-60]),
+        "pos_basket_ret": pos_basket_ret,
+        "neg_basket_ret": neg_basket_ret,
+        "pos_contrib": pos_contrib,
+        "neg_contrib": neg_contrib,
+    }
+
+
 def month_end_dates(index):
     df = pd.Series(index, index=index)
     return df.groupby([index.year, index.month]).last()

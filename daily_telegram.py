@@ -40,6 +40,11 @@ def current_position():
     return prev_d, prev_e, prev_regime, prev_weights, cur_regime, cur_weights, last_signal.name
 
 
+def signal_details():
+    prices, t5yie = backtest.load_data()
+    return backtest.compute_signal_details(prices, t5yie)
+
+
 def long_term_stats():
     conn = sqlite3.connect(DB_PATH)
     equity = conn.execute(
@@ -87,10 +92,18 @@ def weights_str(weights):
 
 def main():
     prev_d, prev_e, prev_regime, prev_weights, cur_regime, cur_weights, cur_date = current_position()
+    details = signal_details()
     cagr, mdd, start, end = long_term_stats()
 
     def regime_str(regime):
         return f"성장 {'상승' if regime[0] else '하락'} · 인플레이션 {'상승' if regime[1] else '하락'}"
+
+    be_mom = "상승 ✔" if details["breakeven_momentum_on"] else "하락 ✘"
+    as_mom = "양수 ✔" if details["asset_momentum_on"] else "≤ 0 ✘"
+    lv = "✔" if details["level_on"] else "✘"
+    infl_tag = "상승" if details["inflation_on"] else "하락"
+    ind_change = details["indicator"] - details["indicator_60ago"]
+    ind_arrow = "↗" if ind_change >= 0 else "↘"
 
     lines = [
         "🧭 <b>Inflation Compass</b>",
@@ -106,6 +119,17 @@ def main():
         f"🔄 <b>오늘 시점 계산</b> ({cur_date.date()})",
         f"{regime_str(cur_regime)}",
         f"선택 ETF: <b>{weights_str(cur_weights)}</b>",
+        "",
+        f"🎯 <b>인플레이션 판정 ({infl_tag})</b>",
+        f"레벨: T5YIE {details['t5yie_now']:.2f}% {'> 2.0%' if details['level_on'] else '≤ 2.0%'} {lv}",
+        f"Breakeven 모멘텀: {details['t5yie_now']:.2f}% vs 60거래일 전 {details['t5yie_60ago']:.2f}% → {be_mom}",
+        f"Asset 모멘텀: confirming indicator 기울기 {details['indicator_slope']:.4f} → {as_mom}",
+        "",
+        f"📊 <b>Confirming Indicator</b> (최근 60일)",
+        f"지표값 {details['indicator_60ago']:.3f} → {details['indicator']:.3f} {ind_arrow} ({ind_change:+.3f})",
+        f"수혜 {details['pos_basket_ret']*100:+.1f}% / 방어 {details['neg_basket_ret']*100:+.1f}%",
+        f"수혜: " + " · ".join(f"{t} {v*100:+.1f}%" for t, v in details["pos_contrib"].items()),
+        f"방어: " + " · ".join(f"{t} {v*100:+.1f}%" for t, v in details["neg_contrib"].items()),
         "",
         f"📈 <b>장기 성과</b> ({start} ~ {end})",
         f"CAGR: <b>{cagr * 100:.1f}%</b>",
