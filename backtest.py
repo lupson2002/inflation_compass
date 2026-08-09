@@ -74,6 +74,17 @@ def compute_signals(prices, t5yie):
     return signals, returns
 
 
+def rolling_slope_parts(series, window=60):
+    """60거래일 선형회귀 기울기 = Σ(x-x̄)(y-ȳ) / Σ(x-x̄)² 의 분자·분모·기울기를 반환."""
+    x = np.arange(window)
+    x_mean = x.mean()
+    denom = ((x - x_mean) ** 2).sum()
+    y = series.iloc[-window:].values
+    y_mean = y.mean()
+    num = float(((x - x_mean) * (y - y_mean)).sum())
+    return num, denom, num / denom
+
+
 def compute_signal_details(prices, t5yie):
     """마지막(최신) 데이터 기준 신호 판정의 구성요소를 반환.
 
@@ -93,6 +104,7 @@ def compute_signal_details(prices, t5yie):
     neg_cum = (1 + neg_ret.where(basket_valid, 0)).cumprod().where(basket_valid)
     indicator = pos_cum / neg_cum
     slope = rolling_slope(indicator, 60)
+    slope_num, slope_denom, slope_val = rolling_slope_parts(indicator, 60)
 
     # 최근 60거래일 누적수익률(가중 기여) — 지표 구성요소 시각화용
     recent = returns.iloc[-60:]
@@ -121,6 +133,9 @@ def compute_signal_details(prices, t5yie):
         "indicator_slope": float(slope.iloc[-1]),
         "indicator": float(indicator.iloc[-1]),
         "indicator_60ago": float(indicator.iloc[-60]),
+        "slope_num": slope_num,
+        "slope_denom": slope_denom,
+        "slope_val": slope_val,
         "pos_basket_ret": pos_basket_ret,
         "neg_basket_ret": neg_basket_ret,
         "pos_contrib": pos_contrib,

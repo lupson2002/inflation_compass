@@ -123,7 +123,7 @@ def main():
         f"🎯 <b>인플레이션 판정 ({infl_tag})</b>",
         f"레벨: T5YIE {details['t5yie_now']:.2f}% {'> 2.0%' if details['level_on'] else '≤ 2.0%'} {lv}",
         f"Breakeven 모멘텀: {details['t5yie_now']:.2f}% vs 60거래일 전 {details['t5yie_60ago']:.2f}% → {be_mom}",
-        f"Asset 모멘텀: confirming indicator 기울기 {details['indicator_slope']:.4f} → {as_mom}",
+        f"Asset 모멘텀: 기울기 = Σ(x−x̄)(y−ȳ)/Σ(x−x̄)² = {details['slope_num']:.4f}/{details['slope_denom']:.0f} = <b>{details['slope_val']:.4f}</b> → {as_mom}",
         "",
         f"📊 <b>Confirming Indicator</b> (최근 60일)",
         f"지표값 {details['indicator_60ago']:.3f} → {details['indicator']:.3f} {ind_arrow} ({ind_change:+.3f})",

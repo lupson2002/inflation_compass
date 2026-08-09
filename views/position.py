@@ -127,15 +127,11 @@ st.markdown(
     f"(60일 전 → 현재, {ind_arrow} {ind_change:+.3f}) · "
     f"수혜 바스켓 {details['pos_basket_ret'] * 100:+.1f}% / 방어 바스켓 {details['neg_basket_ret'] * 100:+.1f}%"
 )
-if details["indicator_slope"] > 0:
-    trend_note = "전체적으로 상승 추세 → 기울기 양수 ✔"
-else:
-    trend_note = "전체적으로 하락 추세 → 기울기 음수 ✘"
 st.markdown(
     f"<div style='background:#f7f8f4;border:1px solid #e1e0d9;border-radius:8px;padding:10px 14px;font-size:13px'>"
-    f"<b>60일 기울기 = {details['indicator_slope']:.4f}</b> · {trend_note}<br>"
-    f"<span style='color:#898781'>※ 시작값과 끝값이 비슷해도, 중간에 크게 내렸다 다시 오르면(산 모양) 전체는 하락 추세로 판단됩니다. "
-    f"그래서 단순 뺄셈이 아니라 전체 흐름의 회귀 기울기를 씁니다.</span>"
+    f"<b>60일 기울기</b> = Σ(x−x̄)(y−ȳ) / Σ(x−x̄)² = "
+    f"<b>{details['slope_num']:.4f}</b> / <b>{details['slope_denom']:.0f}</b> = "
+    f"<b>{details['slope_val']:.4f}</b> {'→ 양수 ✔ (asset 모멘텀 ON)' if details['asset_momentum_on'] else '→ ≤ 0 ✘ (asset 모멘텀 OFF)'}"
     f"</div>",
     unsafe_allow_html=True,
 )
