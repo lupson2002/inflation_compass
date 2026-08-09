@@ -33,8 +33,11 @@ def current_position():
     prices, t5yie = backtest.load_data()
     signals, _ = backtest.compute_signals(prices, t5yie)
     positions = backtest.build_positions(signals)
-    decision_date, period_end, regime, weights = positions[-1]
-    return decision_date, period_end, regime, weights
+    prev_d, prev_e, prev_regime, prev_weights = positions[-1]
+    last_signal = signals.iloc[-1]
+    cur_regime = (bool(last_signal["growth_on"]), bool(last_signal["inflation_on"]))
+    cur_weights = backtest.REGIME_POSITIONS[cur_regime]
+    return prev_d, prev_e, prev_regime, prev_weights, cur_regime, cur_weights, last_signal.name
 
 
 def long_term_stats():
@@ -78,17 +81,16 @@ def send_message(text):
         return False
 
 
+def weights_str(weights):
+    return " + ".join(f"{t} ({TICKER_KR.get(t, t)}) {w * 100:.0f}%" for t, w in weights.items())
+
+
 def main():
-    decision_date, period_end, regime, weights = current_position()
+    prev_d, prev_e, prev_regime, prev_weights, cur_regime, cur_weights, cur_date = current_position()
     cagr, mdd, start, end = long_term_stats()
 
-    growth = "상승" if regime[0] else "하락"
-    infl = "상승" if regime[1] else "하락"
-
-    pos_lines = []
-    for t, w in weights.items():
-        pos_lines.append(f"{t} ({TICKER_KR.get(t, t)}) {w * 100:.0f}%")
-    pos_str = " + ".join(pos_lines)
+    def regime_str(regime):
+        return f"성장 {'상승' if regime[0] else '하락'} · 인플레이션 {'상승' if regime[1] else '하락'}"
 
     lines = [
         "🧭 <b>Inflation Compass</b>",
@@ -96,10 +98,14 @@ def main():
         "성장(Growth)과 인플레이션(Inflation) 두 축으로 매크로 국면을 4가지로 나눠, "
         "매월 마지막 거래일에 판단해 해당 섹터 ETF 하나에 전액 투자하는 로테이션 전략.",
         "",
-        f"📊 <b>오늘의 포지션</b>",
-        f"성장: {growth} | 인플레이션: {infl}",
-        f"보유: <b>{pos_str}</b>",
-        f"(결정일 {decision_date.date()} → 보유기간 ~{period_end.date()})",
+        f"📅 <b>이전 월말 결정</b> ({prev_d.date()})",
+        f"{regime_str(prev_regime)}",
+        f"선택 ETF: <b>{weights_str(prev_weights)}</b>",
+        f"(보유기간 ~ {prev_e.date()})",
+        "",
+        f"🔄 <b>오늘 시점 계산</b> ({cur_date.date()})",
+        f"{regime_str(cur_regime)}",
+        f"선택 ETF: <b>{weights_str(cur_weights)}</b>",
         "",
         f"📈 <b>장기 성과</b> ({start} ~ {end})",
         f"CAGR: <b>{cagr * 100:.1f}%</b>",

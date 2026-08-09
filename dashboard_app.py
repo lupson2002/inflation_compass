@@ -22,6 +22,7 @@ st.markdown(
 
 pages = [
     st.Page("views/dashboard.py", title="대시보드", default=True),
+    st.Page("views/position.py", title="현재 포지션"),
     st.Page("views/methodology.py", title="전략 설명"),
 ]
 st.navigation(pages).run()
