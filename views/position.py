@@ -167,6 +167,7 @@ st.markdown("---")
 st.markdown("## 🏦 연금 운용 · IC 50/25/25")
 
 import pension as pension_mod
+import pension_strategies as ps
 
 pos = pension_mod.pension_position()
 regime = pos["regime"]
@@ -184,3 +185,43 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
+
+st.markdown("")
+st.markdown("#### 🧩 전략 구성 설명")
+pension_cols = st.columns(3)
+for col, (key, info) in zip(pension_cols, ps.PENSION_STRATEGIES.items()):
+    with col:
+        st.markdown(
+            f"""
+            <div style="background:#f7f8f4;border:1px solid #e1e0d9;border-radius:10px;padding:14px 16px;height:100%">
+            <div style="font-size:14px;font-weight:600;color:#16191a">{info['name']}</div>
+            <div style="font-size:12px;color:#bb6b2c;margin:4px 0">비중 {info['weight'] * 100:.0f}%</div>
+            <div style="font-size:12px;color:#52564d">{info['desc']}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+st.markdown("")
+st.markdown("#### 📄 연구 보고서 요약")
+st.markdown(
+    """
+    **20년 연금 인출 로드맵:**
+    - **축적기 (지금~15년 전):** IC+BAA-G4+V8 (50/25/25) — CAGR 16.4%, MDD -18.8%
+    - **전환기 (15년~5년 전):** 점진적 디리스킹 (혼합 → IC 단독 → 정적 60/40)
+    - **인출준비기 (5년 전~인출):** 정적 60/40 또는 IC 방어 레짐
+
+    **핵심 원칙:**
+    1. 동적 자산배분이 정적보다 우월 (모든 윈도우에서 CAGR·Sharpe·MDD 우위)
+    2. 성장 신호는 200MA 유지 (ICSA/SAHM/곡선역전/12-1모멘텀/GAC보다 우월)
+    3. 상관 낮은 혼합이 하락방어 (MDD -28.9% → -18.8%)
+    4. 과최적화 경계 — 둥근 비율, 아웃오브샘플 검증
+
+    **롤링 성과 (IC+BAA-G4+V8 50/25/25):**
+    - 3년: CAGR 16.03% · MDD -9.20% · Sharpe 1.370 · Calmar 2.235
+    - 5년: CAGR 15.32% · MDD -11.30% · Sharpe 1.320 · Calmar 1.689
+    - 10년: CAGR 14.73% · MDD -13.20% · Sharpe 1.301 · Calmar 1.239
+    - 전체(23년): CAGR 16.42% · MDD -18.9% · Sharpe 1.350 · Calmar 0.869
+    """
+)
+st.caption("본 보고서는 과거 데이터 기반 백테스트로, 미래 수익을 보장하지 않습니다.")
