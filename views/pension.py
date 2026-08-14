@@ -182,13 +182,20 @@ with tab_rolling:
             continue
         rdf = ps.rolling_metrics(strat_ret, months)
         st.markdown(f"**{label} 롤링** ({len(rdf)}개 윈도우)")
-        rdf_display = rdf[["CAGR", "MDD", "기간수익률", "Sharpe", "Calmar"]].agg(["mean", "median", "min", "max"])
-        rdf_display = rdf_display.T
+        rdf_display = rdf[["CAGR", "MDD", "기간수익률", "Sharpe", "Calmar"]].agg(["mean", "median", "min", "max"]).T
         rdf_display.columns = ["평균", "중앙", "최소", "최대"]
-        for c in ["CAGR", "MDD", "기간수익률"]:
-            rdf_display[c] = rdf_display[c].map(lambda v: f"{v * 100:.2f}%")
-        for c in ["Sharpe", "Calmar"]:
-            rdf_display[c] = rdf_display[c].map(lambda v: f"{v:.3f}")
+        fmt = {
+            "CAGR": lambda v: f"{v * 100:.2f}%",
+            "MDD": lambda v: f"{v * 100:.2f}%",
+            "기간수익률": lambda v: f"{v * 100:.2f}%",
+            "Sharpe": lambda v: f"{v:.3f}",
+            "Calmar": lambda v: f"{v:.3f}",
+        }
+        rdf_display = pd.DataFrame(
+            {col: [fmt[idx](rdf_display.loc[idx, col]) for idx in rdf_display.index]
+             for col in rdf_display.columns},
+            index=rdf_display.index,
+        )
         st.dataframe(rdf_display, width="stretch")
 
 # ── 연구 보고서 요약 ──
