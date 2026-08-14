@@ -12,6 +12,7 @@ import requests
 from dotenv import load_dotenv
 
 import backtest
+import pension
 
 BASE_DIR = Path(__file__).parent
 DB_PATH = BASE_DIR / "data" / "inflation_compass.db"
@@ -94,6 +95,7 @@ def main():
     prev_d, prev_e, prev_regime, prev_weights, cur_regime, cur_weights, cur_date = current_position()
     details = signal_details()
     cagr, mdd, start, end = long_term_stats()
+    pos = pension.pension_position()
 
     def regime_str(regime):
         return f"성장 {'상승' if regime[0] else '하락'} · 인플레이션 {'상승' if regime[1] else '하락'}"
@@ -134,6 +136,13 @@ def main():
         f"📈 <b>장기 성과</b> ({start} ~ {end})",
         f"CAGR: <b>{cagr * 100:.1f}%</b>",
         f"MaxDD: <b>{mdd * 100:.1f}%</b>",
+        "",
+        "🏦 <b>연금 운용 · IC 50/25/25</b>",
+        f"IC(50%) {pension.TICKER_KR.get(pos['ic_asset'], pos['ic_asset'])} · "
+        f"BAA-G4(25%) {pension.TICKER_KR.get(pos['baag4_asset'], pos['baag4_asset'])} · "
+        f"V8(25%) {pension.TICKER_KR.get(pos['v8_asset'], pos['v8_asset'])}",
+        f"종합: <b>{pension.weights_str(pos['weights'])}</b>",
+        f"레짐: {regime_str(pos['regime'])} · SPY 12M 모멘텀 {pos['spy_12m_mom'] * 100:+.1f}%",
     ]
     text = "\n".join(lines)
     send_message(text)

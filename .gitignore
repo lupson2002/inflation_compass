@@ -3,3 +3,4 @@ __pycache__/
 streamlit.log
 .env
 daily_telegram.log
+pct_telegram.log

@@ -159,3 +159,28 @@ with col_neg:
         unsafe_allow_html=True,
     )
 st.caption("수혜 바스켓 = 0.5·XLE + ⅙·XLI + ⅙·XLF + ⅙·XLB · 방어 바스켓 = ⅓·XLU + ⅓·XLV + ⅓·XLP · 지표 = 수혜누적 ÷ 방어누적")
+
+# ─────────────────────────────────────────────────────────────
+# 연금 운용용 IC 50/25/25 전략 포지션 (하단)
+# ─────────────────────────────────────────────────────────────
+st.markdown("---")
+st.markdown("## 🏦 연금 운용 · IC 50/25/25")
+
+import pension as pension_mod
+
+pos = pension_mod.pension_position()
+regime = pos["regime"]
+regime_str = f"성장 {'상승' if regime[0] else '하락'} · 인플레이션 {'상승' if regime[1] else '하락'}"
+
+st.markdown(
+    f"""
+    <div style="background:#f7f8f4;border:1px solid #e1e0d9;border-radius:10px;padding:18px 20px">
+    <div style="font-size:15px;font-weight:600;color:#16191a">🏦 연금 운용용 IC 50/25/25 전략</div>
+    <div style="font-size:13px;color:#52564d;margin:6px 0 10px">
+    IC(50%) {pension_mod.TICKER_KR.get(pos['ic_asset'], pos['ic_asset'])} · BAA-G4(25%) {pension_mod.TICKER_KR.get(pos['baag4_asset'], pos['baag4_asset'])} · V8(25%) {pension_mod.TICKER_KR.get(pos['v8_asset'], pos['v8_asset'])} · 신호일 {pos['signal_date'].date()}</div>
+    <div style="font-size:22px;font-weight:700;color:#bb6b2c">{pension_mod.weights_str(pos['weights'])}</div>
+    <div style="font-size:12px;color:#898781;margin-top:8px">{regime_str} · SPY 12M 모멘텀 {pos['spy_12m_mom'] * 100:+.1f}%</div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
