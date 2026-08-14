@@ -88,6 +88,14 @@ PENSION_STRATEGIES = {
            "desc": "주식 3자산 모멘텀 최고 + 절대모멘텀 방어."},
 }
 
+# ── 연금 추천 전략 2 (IC+V8 70/30 구성) ──
+PENSION2_STRATEGIES = {
+    "IC": {"name": "IC · Inflation Compass", "weight": 0.70,
+           "desc": "성장/인플레이션 4레짐 매핑. 금·나스닥·장기국채 회전."},
+    "V8": {"name": "V8 · 모멘텀 Top-1 + 절대모멘텀", "weight": 0.30,
+           "desc": "주식 3자산 모멘텀 최고 + 절대모멘텀 방어."},
+}
+
 
 def load_strategy_returns():
     """전략별 월간 수익률 DataFrame 로드."""

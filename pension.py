@@ -39,6 +39,10 @@ IC_W = 0.50
 BAAG4_W = 0.25
 V8_W = 0.25
 
+# ── 전략 2: IC+V8 (70/30) ──
+IC2_W = 0.70
+V8_2_W = 0.30
+
 
 def current_regime():
     """이 프로젝트 신호로 현재 성장/인플레이션 레짐 계산."""
@@ -98,6 +102,26 @@ def weights_str(weights):
     return " + ".join(f"{t} ({TICKER_KR.get(t, t)}) {w * 100:.0f}%" for t, w in weights.items())
 
 
+def pension_position2():
+    """전략 2: IC+V8 (70/30) 현재 포지션 (자산: 비중 dict)."""
+    regime, signal_date = current_regime()
+    ic_asset = IC_REGIME_MAP[regime]
+    v8_asset_ = v8_asset()
+
+    weights = {}
+    for asset, w in [(ic_asset, IC2_W), (v8_asset_, V8_2_W)]:
+        weights[asset] = weights.get(asset, 0.0) + w
+
+    return {
+        "regime": regime,
+        "signal_date": signal_date,
+        "ic_asset": ic_asset,
+        "v8_asset": v8_asset_,
+        "weights": weights,
+        "spy_12m_mom": spy_12m_momentum(),
+    }
+
+
 if __name__ == "__main__":
     pos = pension_position()
     print(f"신호일: {pos['signal_date'].date()}")
@@ -105,3 +129,8 @@ if __name__ == "__main__":
     print(f"IC(50%): {pos['ic_asset']} · BAA-G4(25%): {pos['baag4_asset']} · V8(25%): {pos['v8_asset']}")
     print(f"SPY 12M 모멘텀: {pos['spy_12m_mom'] * 100:+.1f}%")
     print(f"종합 포지션: {weights_str(pos['weights'])}")
+    print()
+    pos2 = pension_position2()
+    print(f"[전략2] IC+V8 (70/30)")
+    print(f"  IC(70%): {pos2['ic_asset']} · V8(30%): {pos2['v8_asset']}")
+    print(f"  종합 포지션: {weights_str(pos2['weights'])}")

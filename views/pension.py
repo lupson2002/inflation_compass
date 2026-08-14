@@ -26,10 +26,27 @@ BAD = "#b0442f"
 
 st.markdown("<style>div.block-container { padding-top: 2.6rem; }</style>", unsafe_allow_html=True)
 
-st.title("연금 운용 · IC 50/25/25")
+st.title("연금 운용 · IC 혼합 전략")
 
-# ── 현재 포지션 ──
-pos = pension.pension_position()
+# ── 전략 선택 ──
+strategy_choice = st.radio(
+    "연금 전략 선택",
+    ["전략 1 · IC 50/25/25", "전략 2 · IC+V8 70/30"],
+    horizontal=True,
+)
+is_strategy2 = strategy_choice.startswith("전략 2")
+
+if is_strategy2:
+    pos = pension.pension_position2()
+    strat_label = "IC+V8 (70/30)"
+    comp_info = ps.PENSION2_STRATEGIES
+    comp_desc = "IC 70% + V8 30% — CAGR 17.13%, MDD -20.3%. 2중 혼합 중 최고 수익."
+else:
+    pos = pension.pension_position()
+    strat_label = "IC 50/25/25"
+    comp_info = ps.PENSION_STRATEGIES
+    comp_desc = "IC 50% + BAA-G4 25% + V8 25% — CAGR 16.42%, MDD -18.9%. 최고 위험조정."
+
 regime = pos["regime"]
 regime_str = f"성장 {'상승' if regime[0] else '하락'} · 인플레이션 {'상승' if regime[1] else '하락'}"
 
@@ -37,9 +54,9 @@ st.markdown("### 📍 현재 포지션")
 st.markdown(
     f"""
     <div style="background:#f7f8f4;border:1px solid #e1e0d9;border-radius:10px;padding:18px 20px">
-    <div style="font-size:15px;font-weight:600;color:#16191a">🏦 연금 운용용 IC 50/25/25</div>
+    <div style="font-size:15px;font-weight:600;color:#16191a">🏦 연금 운용용 {strat_label}</div>
     <div style="font-size:13px;color:#52564d;margin:6px 0 10px">
-    IC(50%) {pension.TICKER_KR.get(pos['ic_asset'], pos['ic_asset'])} · BAA-G4(25%) {pension.TICKER_KR.get(pos['baag4_asset'], pos['baag4_asset'])} · V8(25%) {pension.TICKER_KR.get(pos['v8_asset'], pos['v8_asset'])} · 신호일 {pos['signal_date'].date()}</div>
+    {comp_desc} · 신호일 {pos['signal_date'].date()}</div>
     <div style="font-size:22px;font-weight:700;color:#bb6b2c">{pension.weights_str(pos['weights'])}</div>
     <div style="font-size:12px;color:#898781;margin-top:8px">{regime_str} · SPY 12M 모멘텀 {pos['spy_12m_mom'] * 100:+.1f}%</div>
     </div>
@@ -48,12 +65,10 @@ st.markdown(
 )
 
 # ── 연금 전략 구성 설명 ──
-st.markdown("### 🧩 연금 전략 구성 (IC 50/25/25)")
-st.markdown(
-    "20년 연금 인출 목표로, 상관이 낮은 3개 동적 전략을 혼합해 하락방어를 강화한 포트폴리오."
-)
-pension_cols = st.columns(3)
-for col, (key, info) in zip(pension_cols, ps.PENSION_STRATEGIES.items()):
+st.markdown(f"### 🧩 연금 전략 구성 ({strat_label})")
+st.markdown(comp_desc)
+pension_cols = st.columns(len(comp_info))
+for col, (key, info) in zip(pension_cols, comp_info.items()):
     with col:
         st.markdown(
             f"""
@@ -70,23 +85,47 @@ for col, (key, info) in zip(pension_cols, ps.PENSION_STRATEGIES.items()):
 st.markdown("### 📊 전략 백테스트")
 returns = ps.load_strategy_returns()
 
-group_tab = st.radio("전략 그룹", ["연금 추천 (IC 50/25/25)", "동적 자산배분", "정적 자산배분"], horizontal=True)
+# 혼합 전략 수익률 계산
+common12 = returns[["IC", "BAA-G4", "V8"]].dropna(how="any")
+blend1 = 0.5 * common12["IC"] + 0.25 * common12["BAA-G4"] + 0.25 * common12["V8"]
+common2 = returns[["IC", "V8"]].dropna(how="any")
+blend2 = 0.7 * common2["IC"] + 0.3 * common2["V8"]
 
-if group_tab == "연금 추천 (IC 50/25/25)":
-    strategy_keys = list(ps.PENSION_STRATEGIES.keys())
-    labels = {k: ps.PENSION_STRATEGIES[k]["name"] for k in strategy_keys}
+group_tab = st.radio(
+    "전략 그룹",
+    ["연금 혼합 전략", "동적 자산배분", "정적 자산배분"],
+    horizontal=True,
+)
+
+if group_tab == "연금 혼합 전략":
+    strategy_keys = ["전략1_IC50", "전략2_ICV8"]
+    labels = {
+        "전략1_IC50": "전략 1 · IC 50/25/25 (IC+BAA-G4+V8)",
+        "전략2_ICV8": "전략 2 · IC+V8 70/30",
+    }
+    blend_map = {"전략1_IC50": blend1, "전략2_ICV8": blend2}
 else:
     strategy_keys = ps.DYNAMIC_STRATEGIES if group_tab == "동적 자산배분" else ps.STATIC_STRATEGIES
     labels = {k: ps.STRATEGY_INFO[k]["name"] for k in strategy_keys}
 
 selected = st.selectbox("전략 선택", strategy_keys, format_func=lambda k: labels[k])
 
-info = ps.STRATEGY_INFO[selected]
+if group_tab == "연금 혼합 전략":
+    strat_ret = blend_map[selected].dropna()
+    info = {
+        "name": labels[selected],
+        "group": "연금 혼합",
+        "desc": ("IC 50% + BAA-G4 25% + V8 25% — CAGR 16.42%, MDD -18.9%, 최고 위험조정"
+                 if selected == "전략1_IC50" else
+                 "IC 70% + V8 30% — CAGR 17.13%, MDD -20.3%, 2중 혼합 중 최고 수익"),
+    }
+else:
+    info = ps.STRATEGY_INFO[selected]
+    strat_ret = returns[selected].dropna()
+
 st.markdown(f"**{info['name']}** · {info['group']} 자산배분")
 st.markdown(info["desc"])
 
-# 전략 수익률
-strat_ret = returns[selected].dropna()
 if len(strat_ret) == 0:
     st.warning("선택한 전략의 데이터가 없습니다.")
     st.stop()
