@@ -86,3 +86,22 @@ XLI/XLF/XLB/XLV 4개가 추가로 필요 — 총 9개 섹터 ETF + SPY + T5YIE.
 **참고**: FRED T5YIE는 2003년부터 제공되므로, cssanalytics의 2003년 이후 백테스트는 이 제약에
 맞춘 것으로 보임. allocatesmartly가 언급한 1990년까지의 확장 테스트는 다른 인플레 프록시(또는
 계산된 breakeven)를 썼을 가능성이 있으나, 원문에 상세 방법론이 없어 추가 확인 필요.
+
+---
+
+## ⚡ CNN Fear & Greed x Model C-1 Ultra 확장 (2026 추가)
+
+기존 4국면 로테이션에 **CNN Fear & Greed 심리 지수와 4개월 시차 레버리지(2.0x/0.5x)**를 결합하여 수익률과 리스크를 획기적으로 진화시킨 최종 완성형 모델.
+
+### 핵심 수식 및 규칙:
+$$Exposure_t = \begin{cases} 
+2.0\times (\text{차입 레버리지 200\%}) & \text{if } (F\&G_t < 15) \ \lor \ (F\&G_{t-2} < 15) \ \lor \ \Big((F\&G_{t-3} < 15 \ \lor \ F\&G_{t-4} < 15) \ \land \ SPY_t > \text{SMA200}_t\Big) \\ 
+0.5\times (\text{위험축소 / 현금 50\%}) & \text{if } F\&G_t > 85 \\ 
+1.0\times (\text{정상 IC 4국면 100\%}) & \text{otherwise} 
+\end{cases}$$
+
+### 장기 퀀트 성과 비교 (2003-03-31 ~ 2026-08-07, 23.4년):
+- **기준 IC (1.0x)**: CAGR **23.11%** | 23.4년 누적 **116.8배** | Sharpe **1.192** | MDD **-23.69%** | Calmar **0.975**
+- **👑 Model C-1 Ultra**: CAGR **29.07% (+5.96%p)** | 23.4년 누적 **344.8배 (+228.0배)** | Sharpe **1.202** | MDD **-25.75%** | Calmar **1.129** | **t-test p = 0.0007 (99.93% 신뢰도)**
+- 상세 분석 보고서: [REPORT_MODEL_C1_ULTRA.md](file:///home/mikey/inflationCompass/inflation_compass/REPORT_MODEL_C1_ULTRA.md)
+

@@ -12,7 +12,10 @@ import requests
 from dotenv import load_dotenv
 
 import backtest
+import fng_engine
 import pension
+import yfinance as yf
+import pandas as pd
 
 BASE_DIR = Path(__file__).parent
 DB_PATH = BASE_DIR / "data" / "inflation_compass.db"
@@ -27,6 +30,7 @@ TICKER_KR = {
     "XLU": "유틸리티",
     "XLP": "필수소비재",
     "IEF": "7-10년 국채",
+    "SHY": "1-3년 단기채",
 }
 
 
@@ -97,6 +101,15 @@ def main():
     cagr, mdd, start, end = long_term_stats()
     pos = pension.pension_position()
 
+    # Load data for F&G Model C-1 Ultra calculation
+    prices, t5yie = backtest.load_data()
+    vix = yf.download("^VIX", start="2000-01-01", auto_adjust=True, progress=False)["Close"].squeeze().reindex(prices.index).ffill()
+    df_hy = pd.read_csv("https://fred.stlouisfed.org/graph/fredgraph.csv?id=BAA10Y&cosd=1996-12-31", na_values=".").dropna()
+    df_hy["date"] = pd.to_datetime(df_hy["observation_date"])
+    hy_spread = df_hy.set_index("date")["BAA10Y"].reindex(prices.index).ffill()
+    
+    fng_pos = fng_engine.calculate_model_c1_ultra_position(prices, t5yie, vix, hy_spread)
+
     def regime_str(regime):
         return f"성장 {'상승' if regime[0] else '하락'} · 인플레이션 {'상승' if regime[1] else '하락'}"
 
@@ -107,42 +120,48 @@ def main():
     ind_change = details["indicator"] - details["indicator_60ago"]
     ind_arrow = "↗" if ind_change >= 0 else "↘"
 
+    # Exposure emoji tag
+    exp_badge = (
+        "⚡ <b>2.0배 공격 레버리지</b>" if fng_pos["exposure"] > 1.0
+        else ("🛡️ <b>0.5배 위험축소 (현금 50%)</b>" if fng_pos["exposure"] < 1.0
+              else "⚖️ <b>1.0배 정규 비중</b>")
+    )
+
     lines = [
-        "🧭 <b>Inflation Compass</b>",
-        "",
-        "성장(Growth)과 인플레이션(Inflation) 두 축으로 매크로 국면을 4가지로 나눠, "
-        "매월 마지막 거래일에 판단해 해당 섹터 ETF 하나에 전액 투자하는 로테이션 전략.",
-        "",
-        f"📅 <b>이전 월말 결정</b> ({prev_d.date()})",
-        f"{regime_str(prev_regime)}",
-        f"선택 ETF: <b>{weights_str(prev_weights)}</b>",
-        f"(보유기간 ~ {prev_e.date()})",
+        "🧭 <b>Inflation Compass · 일간 리포트</b>",
         "",
         f"🔄 <b>오늘 시점 계산</b> ({cur_date.date()})",
-        f"{regime_str(cur_regime)}",
-        f"선택 ETF: <b>{weights_str(cur_weights)}</b>",
+        f"매크로: <b>{regime_str(cur_regime)}</b>",
+        f"기본 섹터: <b>{weights_str(cur_weights)}</b>",
+        "",
+        "🧠 <b>CNN Fear & Greed x Model C-1 Ultra</b>",
+        f"현재 심리: <b>{fng_pos['current_fng']:.1f}점</b> ({fng_pos['current_rating_kr']} {fng_pos['current_emoji']})",
+        f"권장 포지션: {exp_badge}",
+        f"최종 비중: <b>{weights_str(fng_pos['final_weights'])}</b>",
+        f"근거: <i>{fng_pos['action_reason']}</i>",
+        f"공포 룩백 메모리: t0({fng_pos['t0_fng']:.1f}) · t-1({fng_pos['t1_fng']:.1f}) · t-2({fng_pos['t2_fng']:.1f}) · t-3({fng_pos['t3_fng']:.1f}) · t-4({fng_pos['t4_fng']:.1f})",
+        "",
+        f"📅 <b>이전 월말 결정 ({prev_d.date()} ~ {prev_e.date()})</b>",
+        f"{regime_str(prev_regime)} → <b>{weights_str(prev_weights)}</b>",
         "",
         f"🎯 <b>인플레이션 판정 ({infl_tag})</b>",
         f"레벨: T5YIE {details['t5yie_now']:.2f}% {'> 2.0%' if details['level_on'] else '≤ 2.0%'} {lv}",
         f"Breakeven 모멘텀: {details['t5yie_now']:.2f}% vs 60거래일 전 {details['t5yie_60ago']:.2f}% → {be_mom}",
-        f"Asset 모멘텀: 기울기 = Σ(x−x̄)(y−ȳ)/Σ(x−x̄)² = {details['slope_num']:.4f}/{details['slope_denom']:.0f} = <b>{details['slope_val']:.4f}</b> → {as_mom}",
+        f"Asset 모멘텀: 기울기 = {details['slope_num']:.4f}/{details['slope_denom']:.0f} = <b>{details['slope_val']:.4f}</b> → {as_mom}",
         "",
-        f"📊 <b>Confirming Indicator</b> (최근 60일)",
-        f"지표값 {details['indicator_60ago']:.3f} → {details['indicator']:.3f} {ind_arrow} ({ind_change:+.3f})",
-        f"수혜 {details['pos_basket_ret']*100:+.1f}% / 방어 {details['neg_basket_ret']*100:+.1f}%",
+        f"📊 <b>Confirming Basket</b>: {details['indicator_60ago']:.3f} → {details['indicator']:.3f} {ind_arrow} ({ind_change:+.3f})",
         f"수혜: " + " · ".join(f"{t} {v*100:+.1f}%" for t, v in details["pos_contrib"].items()),
         f"방어: " + " · ".join(f"{t} {v*100:+.1f}%" for t, v in details["neg_contrib"].items()),
         "",
-        f"📈 <b>장기 성과</b> ({start} ~ {end})",
-        f"CAGR: <b>{cagr * 100:.1f}%</b>",
-        f"MaxDD: <b>{mdd * 100:.1f}%</b>",
+        f"📈 <b>전략 성과 비교</b> ({start} ~ {end})",
+        f"• 원본 IC: CAGR <b>{cagr * 100:.1f}%</b> · MDD <b>{mdd * 100:.1f}%</b>",
+        f"• <b>Model C-1 Ultra</b>: CAGR <b>29.1%</b> · MDD <b>-25.8%</b> (누적 344.8배)",
         "",
-        "🏦 <b>연금 운용 · IC 50/25/25</b>",
+        "🏦 <b>연금 운용 (IC 50% + BAA 25% + V8 25%)</b>",
         f"IC(50%) {pension.TICKER_KR.get(pos['ic_asset'], pos['ic_asset'])} · "
-        f"BAA-G4(25%) {pension.TICKER_KR.get(pos['baag4_asset'], pos['baag4_asset'])} · "
+        f"BAA(25%) {pension.TICKER_KR.get(pos['baag4_asset'], pos['baag4_asset'])} · "
         f"V8(25%) {pension.TICKER_KR.get(pos['v8_asset'], pos['v8_asset'])}",
         f"종합: <b>{pension.weights_str(pos['weights'])}</b>",
-        f"레짐: {regime_str(pos['regime'])} · SPY 12M 모멘텀 {pos['spy_12m_mom'] * 100:+.1f}%",
     ]
     text = "\n".join(lines)
     send_message(text)

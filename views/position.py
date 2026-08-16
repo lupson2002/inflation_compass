@@ -10,12 +10,16 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import backtest
 
+import fng_engine
+import yfinance as yf
+
 TICKER_KR = {
     "XLE": "에너지",
     "XLK": "기술",
     "XLU": "유틸리티",
     "XLP": "필수소비재",
     "IEF": "7-10년 국채",
+    "SHY": "1-3년 단기채",
 }
 
 
@@ -39,6 +43,8 @@ st.markdown(
     .ic-pos-regime { font-size:13px; color:#52564d; margin:6px 0 10px; }
     .ic-pos-asset { font-size:22px; font-weight:700; color:#bb6b2c; }
     .ic-pos-note { font-size:12px; color:#898781; margin-top:10px; }
+    .ic-fng-card { background:#ffffff; border:2px solid #2b6cb0; border-radius:12px; padding:20px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+    .ic-fng-score { font-size:32px; font-weight:800; color:#2b6cb0; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -49,13 +55,50 @@ signals, _ = backtest.compute_signals(prices, t5yie)
 positions = backtest.build_positions(signals)
 details = backtest.compute_signal_details(prices, t5yie)
 
+# F&G Engine Data
+vix = yf.download("^VIX", start="2000-01-01", auto_adjust=True, progress=False)["Close"].squeeze().reindex(prices.index).ffill()
+df_hy = pd.read_csv("https://fred.stlouisfed.org/graph/fredgraph.csv?id=BAA10Y&cosd=1996-12-31", na_values=".").dropna()
+df_hy["date"] = pd.to_datetime(df_hy["observation_date"])
+hy_spread = df_hy.set_index("date")["BAA10Y"].reindex(prices.index).ffill()
+fng_pos = fng_engine.calculate_model_c1_ultra_position(prices, t5yie, vix, hy_spread)
+
 prev_d, prev_e, prev_regime, prev_weights = positions[-1]
 last_signal = signals.iloc[-1]
 cur_regime = (bool(last_signal["growth_on"]), bool(last_signal["inflation_on"]))
 cur_weights = backtest.REGIME_POSITIONS[cur_regime]
 
-st.title("현재 포지션")
+st.title("현재 포지션 및 심리 레버리지 오버레이")
 
+# 1. Fear & Greed Model C-1 Ultra Live Banner
+st.markdown("### 🧠 CNN Fear & Greed x Model C-1 Ultra 실시간 포지션")
+fcol1, fcol2, fcol3 = st.columns([1.2, 1.8, 1.5])
+
+with fcol1:
+    st.metric(
+        label="CNN Fear & Greed 심리지수",
+        value=f"{fng_pos['current_fng']:.1f}점 {fng_pos['current_emoji']}",
+        delta=fng_pos["current_rating_kr"],
+    )
+
+with fcol2:
+    exp_text = "⚡ 2.0배 공격 레버리지 (200%)" if fng_pos["exposure"] > 1.0 else ("🛡️ 0.5배 위험축소 (현금 50%)" if fng_pos["exposure"] < 1.0 else "⚖️ 1.0배 정규 비중 (100%)")
+    st.markdown(f"**권장 노출 배수:** `{exp_text}`")
+    st.markdown(f"**최종 목표 비중:** **{weights_str(fng_pos['final_weights'])}**")
+    st.caption(f"💡 판단 근거: {fng_pos['action_reason']}")
+
+with fcol3:
+    st.markdown("**공포 룩백 메모리 ($F&G < 15$ 탐지)**")
+    st.markdown(
+        f"- $t_0$ (당월): `{fng_pos['t0_fng']:.1f}` {'🚨' if fng_pos['t0_fng'] < 15 else 'OK'}\n"
+        f"- $t-2$ (2달 전): `{fng_pos['t2_fng']:.1f}` {'🚨' if fng_pos['t2_fng'] < 15 else 'OK'}\n"
+        f"- $t-3$ (3달 전): `{fng_pos['t3_fng']:.1f}` {'🚨' if fng_pos['t3_fng'] < 15 else 'OK'}\n"
+        f"- $t-4$ (4달 전): `{fng_pos['t4_fng']:.1f}` {'🚨' if fng_pos['t4_fng'] < 15 else 'OK'}"
+    )
+
+st.divider()
+
+# 2. Original Baseline IC Regime Position Cards
+st.markdown("### 🧭 Inflation Compass 4국면 기본 로테이션")
 col1, col2 = st.columns(2)
 
 with col1:

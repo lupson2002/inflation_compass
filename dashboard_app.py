@@ -21,10 +21,11 @@ st.markdown(
 )
 
 pages = [
-    st.Page("views/dashboard.py", title="Inflation Compass · 대시보드"),
+    st.Page("views/fng_model.py", title="Fear & Greed · Model C-1 Ultra", default=True),
     st.Page("views/position.py", title="Inflation Compass · 현재 포지션"),
+    st.Page("views/dashboard.py", title="Inflation Compass · 대시보드"),
     st.Page("views/methodology.py", title="Inflation Compass · 전략 설명"),
-    st.Page("views/pct_dashboard.py", title="Percentile Channels · 대시보드", default=True),
+    st.Page("views/pct_dashboard.py", title="Percentile Channels · 대시보드"),
     st.Page("views/pct_position.py", title="Percentile Channels · 현재 포지션"),
     st.Page("views/pct_methodology.py", title="Percentile Channels · 전략 설명"),
     st.Page("views/pension.py", title="연금 운용 · IC 50/25/25"),
