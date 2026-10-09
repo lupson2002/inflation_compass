@@ -1,0 +1,20 @@
+{
+  "model": "v18.2-nolev",
+  "generated_at": "2026-10-09T23:39:14",
+  "data_asof": "2026-10-08",
+  "target": {
+    "GLD": 1.0
+  },
+  "effective_since": "2026-07-01",
+  "prev_target": {
+    "TLT": 0.5,
+    "GLD": 0.5
+  },
+  "backtest": {
+    "era": "etf",
+    "start": "2008-01-02",
+    "CAGR": 0.155,
+    "MDD": -0.2301,
+    "Sharpe": 0.9051
+  }
+}

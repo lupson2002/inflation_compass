@@ -1,7 +1,7 @@
-"""연금 운용 · IC 50/25/25 — 대시보드.
+"""연금 운용 — 대시보드 (2026-10-09 개편).
 
-dual-momentum 연구의 정적/동적 자산배분 전략 전체를 담고,
-전략을 선택하면 백테스트 차트(수익곡선·낙폭·연도별·비중)와 지표를 보여준다.
+위: 확정 연금 혼합 IC 연금형 50% + PENTARCH 비레버리지 50% 의 현재 포지션과 백테스트(pension_mix.py).
+아래: 종전 dual-momentum 연구(CSV)의 정적/동적 전략 — 참고용.
 """
 
 import sys
@@ -15,8 +15,10 @@ from plotly.subplots import make_subplots
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-import pension
+import backtest
+import pension_mix as PM
 import pension_strategies as ps
+import yfinance as yf
 
 COPPER = "#bb6b2c"
 COPPER_DIM = "#d3a578"
@@ -26,63 +28,92 @@ BAD = "#b0442f"
 
 st.markdown("<style>div.block-container { padding-top: 2.6rem; }</style>", unsafe_allow_html=True)
 
-st.title("연금 운용 · IC 혼합 전략")
+st.title("연금 운용 · IC 연금형 50 + PENTARCH 50")
+st.caption("레버리지 없음(연금계좌 기준). 매월 말 50/50 으로 다시 맞춘다.")
 
-# ── 전략 선택 ──
-strategy_choice = st.radio(
-    "연금 전략 선택",
-    ["전략 1 · IC 50/25/25", "전략 2 · IC+V8 70/30"],
-    horizontal=True,
+prices, t5yie = backtest.load_data()
+vix = yf.download("^VIX", start="2000-01-01", auto_adjust=True, progress=False)["Close"].squeeze().reindex(prices.index).ffill()
+_baa = pd.read_csv("https://fred.stlouisfed.org/graph/fredgraph.csv?id=BAA10Y&cosd=1996-12-31", na_values=".").dropna()
+_baa["date"] = pd.to_datetime(_baa["observation_date"])
+baa10y = _baa.set_index("date")["BAA10Y"].reindex(prices.index).ffill()
+mix = PM.mix_position(prices, t5yie, vix, baa10y)
+ic, pent = mix["ic"], mix["pentarch"]
+
+st.markdown("### 📍 현재 목표 비중")
+c1, c2, c3 = st.columns(3)
+with c1:
+    regime = f"성장 {'상승' if ic['growth_on'] else '하락'} · 인플레이션 {'상승' if ic['inflation_on'] else '하락'}"
+    st.markdown(
+        f"""<div style="background:#f7f8f4;border:1px solid #e1e0d9;border-radius:10px;padding:16px 18px;height:100%">
+        <div style="font-size:14px;font-weight:600">🧭 IC 연금형 (50%)</div>
+        <div style="font-size:12px;color:#52564d;margin:4px 0 8px">{regime} · IC 위험선호 지수 {ic['index']:.1f} · 노출 {ic['exposure']:.1f}배</div>
+        <div style="font-size:18px;font-weight:700;color:#bb6b2c">{PM.weights_str(ic['final_weights'])}</div>
+        <div style="font-size:11px;color:#898781;margin-top:6px">{'채권방어 작동 중(IEF &lt; 200일선)' if ic['bond_shield'] else '확정 전략과 같은 국면 판단, 2배 레버리지만 뺌'}</div>
+        </div>""", unsafe_allow_html=True)
+with c2:
+    if pent is None:
+        body = "<div style='font-size:14px;color:#b0442f'>PENTARCH 신호 없음 — pentarch 크론(05:00) 확인</div>"
+    else:
+        warn = f"<div style='font-size:11px;color:#b0442f'>⚠️ 신호가 {pent['stale_days']}일 지났다</div>" if pent["stale"] else ""
+        body = (f"<div style='font-size:12px;color:#52564d;margin:4px 0 8px'>v18.2 신호 · 레버리지 ETF 제외 · {pent['effective_since']} 부터 · "
+                f"데이터 {pent['data_asof']} ({pent['source']})</div>"
+                f"<div style='font-size:18px;font-weight:700;color:#bb6b2c'>{PM.weights_str(pent['target'])}</div>{warn}")
+    st.markdown(
+        f"""<div style="background:#f7f8f4;border:1px solid #e1e0d9;border-radius:10px;padding:16px 18px;height:100%">
+        <div style="font-size:14px;font-weight:600">🏛️ PENTARCH 비레버리지 (50%)</div>{body}</div>""", unsafe_allow_html=True)
+with c3:
+    st.markdown(
+        f"""<div style="background:#fff;border:2px solid #bb6b2c;border-radius:10px;padding:16px 18px;height:100%">
+        <div style="font-size:14px;font-weight:600">🏦 합계 (계좌 비중)</div>
+        <div style="font-size:20px;font-weight:800;color:#bb6b2c;margin-top:8px">{PM.weights_str(mix['weights'])}</div>
+        </div>""", unsafe_allow_html=True)
+
+st.markdown("### 📈 백테스트 (2008-02 ~ 2026-09, 월말 재조정)")
+bt = pd.read_csv(Path(__file__).parent.parent / "data" / "pension_mix_backtest.csv", index_col=0, parse_dates=True)
+
+
+def _mix(d: pd.DataFrame, w: dict, cost_bp: float = 30) -> pd.Series:
+    cols = list(w); wv = np.array([w[c] for c in cols]); out = []
+    for r in d[cols].values:
+        g = float(wv @ r); drift = wv * (1 + r) / (1 + g)
+        out.append((1 + g) * (1 - np.abs(drift - wv).sum() * cost_bp / 1e4) - 1)
+    return pd.Series(out, index=d.index)
+
+
+curves = {"IC 50 + PENTARCH 50 (확정)": _mix(bt, {"IC": .5, "PENT": .5}), "IC 연금형 단독": bt["IC"],
+          "PENTARCH 비레버리지 단독": bt["PENT"], "IC 35 + BAA 30 + PENTARCH 35": _mix(bt, {"IC": .35, "BAA": .3, "PENT": .35}),
+          "IC 25 + BAA 45 + PENTARCH 30 (인출 직전형)": _mix(bt, {"IC": .25, "BAA": .45, "PENT": .3})}
+fig = make_subplots(rows=2, cols=1, shared_xaxes=True, row_heights=[0.7, 0.3], vertical_spacing=0.06)
+colors = [COPPER, SLATE, "#8a8d84", GOOD, "#9b59b6"]
+rows = []
+for (name, r), col in zip(curves.items(), colors):
+    eq = (1 + r).cumprod(); dd = eq / eq.cummax() - 1
+    fig.add_trace(go.Scatter(x=eq.index, y=eq, name=name, line=dict(color=col, width=2.4 if "확정" in name else 1.3)), row=1, col=1)
+    fig.add_trace(go.Scatter(x=dd.index, y=dd * 100, line=dict(color=col, width=1), showlegend=False), row=2, col=1)
+    n = len(r) / 12
+    first, second = r.loc[:"2016-12-31"], r.loc["2017-01-31":]
+    rows.append({"조합": name, "CAGR": f"{eq.iloc[-1] ** (1 / n) - 1:.1%}", "MDD(월말)": f"{dd.min():.1%}",
+                 "전반 2008~16": f"{(1 + first).prod() ** (12 / len(first)) - 1:.1%}",
+                 "후반 2017~": f"{(1 + second).prod() ** (12 / len(second)) - 1:.1%}"})
+fig.update_yaxes(type="log", title="growth of $1", row=1, col=1)
+fig.update_yaxes(title="drawdown %", row=2, col=1)
+fig.update_layout(height=520, margin=dict(l=10, r=10, t=10, b=10), legend=dict(orientation="h", yanchor="bottom", y=1.02),
+                  hovermode="x unified", plot_bgcolor="rgba(0,0,0,0)")
+st.plotly_chart(fig, width="stretch")
+st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
+st.caption(
+    "IC 연금형·BAA-G4(켈러 원본, ETF) = 월말 종가 전 체결·30bp, PENTARCH = 다음 날 체결·15bp. "
+    "PENTARCH 비레버리지는 pentarch 의 사전등록 검증을 거친 운용 모델이 아니다(v18.2 신호에서 레버리지 ETF 만 끔). "
+    "비중은 같은 기간 231개 조합 비교에서 고른 둥근 값 — 근처 비중과의 차이는 의미가 작다."
 )
-is_strategy2 = strategy_choice.startswith("전략 2")
 
-if is_strategy2:
-    pos = pension.pension_position2()
-    strat_label = "IC+V8 (70/30)"
-    comp_info = ps.PENSION2_STRATEGIES
-    comp_desc = "IC 70% + V8 30% — CAGR 17.13%, MDD -20.3%. 2중 혼합 중 최고 수익."
-else:
-    pos = pension.pension_position()
-    strat_label = "IC 50/25/25"
-    comp_info = ps.PENSION_STRATEGIES
-    comp_desc = "IC 50% + BAA-G4 25% + V8 25% — CAGR 16.42%, MDD -18.9%. 최고 위험조정."
-
-regime = pos["regime"]
-regime_str = f"성장 {'상승' if regime[0] else '하락'} · 인플레이션 {'상승' if regime[1] else '하락'}"
-
-st.markdown("### 📍 현재 포지션")
-st.markdown(
-    f"""
-    <div style="background:#f7f8f4;border:1px solid #e1e0d9;border-radius:10px;padding:18px 20px">
-    <div style="font-size:15px;font-weight:600;color:#16191a">🏦 연금 운용용 {strat_label}</div>
-    <div style="font-size:13px;color:#52564d;margin:6px 0 10px">
-    {comp_desc} · 신호일 {pos['signal_date'].date()}</div>
-    <div style="font-size:22px;font-weight:700;color:#bb6b2c">{pension.weights_str(pos['weights'])}</div>
-    <div style="font-size:12px;color:#898781;margin-top:8px">{regime_str} · SPY 12M 모멘텀 {pos['spy_12m_mom'] * 100:+.1f}%</div>
-    </div>
-    """,
-    unsafe_allow_html=True,
+st.divider()
+st.markdown("### 📚 종전 연구 — dual-momentum CSV (참고)")
+st.caption(
+    "아래 전략들의 'IC' 는 이 프로젝트 IC 가 아니라 금·나스닥·장기국채를 회전하는 변형이고, "
+    "종전 화면의 BAA-G4·V8 현재 포지션은 단순 근사였다. 연구 기록으로만 남긴다."
 )
-
-# ── 연금 전략 구성 설명 ──
-st.markdown(f"### 🧩 연금 전략 구성 ({strat_label})")
-st.markdown(comp_desc)
-pension_cols = st.columns(len(comp_info))
-for col, (key, info) in zip(pension_cols, comp_info.items()):
-    with col:
-        st.markdown(
-            f"""
-            <div style="background:#f7f8f4;border:1px solid #e1e0d9;border-radius:10px;padding:14px 16px;height:100%">
-            <div style="font-size:14px;font-weight:600;color:#16191a">{info['name']}</div>
-            <div style="font-size:12px;color:#bb6b2c;margin:4px 0">비중 {info['weight'] * 100:.0f}%</div>
-            <div style="font-size:12px;color:#52564d">{info['desc']}</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
 # ── 전략 선택 ──
-st.markdown("### 📊 전략 백테스트")
 returns = ps.load_strategy_returns()
 
 # 혼합 전략 수익률 계산

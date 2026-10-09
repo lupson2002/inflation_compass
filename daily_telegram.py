@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 import backtest
 import fetch_data
 import fng_engine
-import pension
+import pension_mix
 import yfinance as yf
 import pandas as pd
 
@@ -111,7 +111,6 @@ def main():
     prev_d, prev_e, prev_regime, prev_weights, cur_regime, cur_weights, cur_date = current_position()
     details = signal_details()
     cagr, mdd, start, end = long_term_stats()
-    pos = pension.pension_position()
 
     # Load data for F&G Model C-1 Ultra calculation
     prices, t5yie = backtest.load_data()
@@ -122,6 +121,13 @@ def main():
     
     fng_pos = fng_engine.calculate_model_c1_ultra_position(prices, t5yie, vix, hy_spread)
     prev = fng_pos["prev_decision"]
+    pmix = pension_mix.mix_position(prices, t5yie, vix, hy_spread)
+    pic, pent = pmix["ic"], pmix["pentarch"]
+    if pent is None:
+        pent_line = "PENTARCH(50%): ⚠️ 신호 없음 — pentarch 05시 크론 확인"
+    else:
+        pent_line = (f"PENTARCH(50%): {pension_mix.weights_str(pent['target'])} ({pent['effective_since']}부터)"
+                     + (f" ⚠️ {pent['stale_days']}일 지난 신호" if pent["stale"] else ""))
 
     def regime_str(regime):
         return f"성장 {'상승' if regime[0] else '하락'} · 인플레이션 {'상승' if regime[1] else '하락'}"
@@ -172,11 +178,12 @@ def main():
         f"• 원본 IC: CAGR <b>{cagr * 100:.1f}%</b> · MDD <b>{mdd * 100:.1f}%</b>",
         "• <b>확정 전략</b>: CAGR <b>21.4%</b> · MDD <b>-24.5%</b> (실거래 조건, 30bp·DTB3 차입 반영)",
         "",
-        "🏦 <b>연금 운용 (IC 50% + BAA 25% + V8 25%)</b>",
-        f"IC(50%) {pension.TICKER_KR.get(pos['ic_asset'], pos['ic_asset'])} · "
-        f"BAA(25%) {pension.TICKER_KR.get(pos['baag4_asset'], pos['baag4_asset'])} · "
-        f"V8(25%) {pension.TICKER_KR.get(pos['v8_asset'], pos['v8_asset'])}",
-        f"종합: <b>{pension.weights_str(pos['weights'])}</b>",
+        "🏦 <b>연금 운용 (IC 연금형 50% + PENTARCH 비레버리지 50%)</b>",
+        f"IC 연금형(50%): {pension_mix.weights_str(pic['final_weights'])} · 노출 {pic['exposure']:.1f}배"
+        + (" · 채권방어" if pic["bond_shield"] else ""),
+        pent_line,
+        f"합계: <b>{pension_mix.weights_str(pmix['weights'])}</b>",
+        "백테스트 2008~: 연 16.0% · MDD −15.6% (월말)",
     ]
     text = "\n".join(lines)
     send_message(text)
