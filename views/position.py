@@ -69,14 +69,14 @@ cur_weights = fng_pos["final_weights"]
 
 st.title("현재 포지션 및 심리 레버리지 오버레이")
 
-# 1. Fear & Greed Model C-1 Ultra Live Banner
-st.markdown("### 🧠 확정 전략 실시간 포지션 (Inflation Compass × CNN Fear & Greed)")
-st.caption(f"공포·탐욕 출처: {fng_pos['fng_source']} · 가격·T5YIE 데이터 기준일 {prices.index[-1].date()}")
+# 1. 확정 전략 실시간 배너 — 신호는 IC 위험선호 지수, CNN 은 참고
+st.markdown("### 🧠 확정 전략 실시간 포지션 (Inflation Compass × IC 위험선호 지수)")
+st.caption(f"가격·T5YIE 데이터 기준일 {prices.index[-1].date()} · 레버리지 규칙: 지수 < 15 → 2배, > 85 → 0.5배, 그 외 1배")
 fcol1, fcol2, fcol3 = st.columns([1.2, 1.8, 1.5])
 
 with fcol1:
     st.metric(
-        label="CNN Fear & Greed 심리지수",
+        label=f"{fng_pos['index_name']} (신호)",
         value=f"{fng_pos['current_fng']:.1f}점 {fng_pos['current_emoji']}",
         delta=fng_pos["current_rating_kr"],
     )
@@ -88,13 +88,12 @@ with fcol2:
     st.caption(f"💡 판단 근거: {fng_pos['action_reason']}")
 
 with fcol3:
-    st.markdown("**공포 룩백 메모리 ($F&G < 15$ 탐지)**")
+    cnn = fng_pos["cnn_score"]
+    st.markdown("**참고: CNN Fear & Greed**")
     st.markdown(
-        f"- $t_0$ (당월): `{fng_pos['t0_fng']:.1f}` {'🚨' if fng_pos['t0_fng'] < 15 else 'OK'}\n"
-        f"- $t-2$ (2달 전): `{fng_pos['t2_fng']:.1f}` {'🚨' if fng_pos['t2_fng'] < 15 else 'OK'}\n"
-        f"- $t-3$ (3달 전): `{fng_pos['t3_fng']:.1f}` {'🚨' if fng_pos['t3_fng'] < 15 else 'OK'}\n"
-        f"- $t-4$ (4달 전): `{fng_pos['t4_fng']:.1f}` {'🚨' if fng_pos['t4_fng'] < 15 else 'OK'}"
+        f"- 현재: `{cnn:.1f}` ({fng_pos['cnn_rating_kr']})\n" if cnn is not None else "- 현재: 조회 실패\n"
     )
+    st.caption("4요소 지수와 CNN(7요소)은 극단 구간이 절반만 겹친다. 큰 차이가 나면 눈으로 확인한다. 신호에는 쓰지 않는다.")
 
 st.divider()
 

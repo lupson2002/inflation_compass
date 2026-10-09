@@ -38,6 +38,7 @@ class Params:
     p1_scope: str = "all"         # P1 적용 범위: "all" / "equity"(침체 국면 — 채권 보유 — 에서는 끈다)
     slowdown_lev: str = "ief_only"  # 침체 국면 레버리지(2026-10-09 확정: ief_only): "all"(그대로) / "shield1x"(단기채 달 1배) /
                                   #   "ief_only"(늘린 몫은 IEF 에만 + 단기채 달 1배) / "cap1x"(침체 국면 항상 1배 이하)
+    fear_rule: str = "t0"         # 공포 2배 규칙(2026-10-09 확정: "t0" 당월 공포만) / "ultra"(종전: 당월·2개월·3~4개월 전)
     extra: dict = field(default_factory=dict, compare=False)
 
 
@@ -54,12 +55,15 @@ def target_weights(row, p2: int, p3: int, prm: Params, ief_ma: float) -> dict:
 
 
 def leverage(past: list, p1: int, p4: int, prm: Params) -> tuple[float, bool]:
-    """Model C-1 Ultra 레버리지 규칙 + P1(서킷브레이커)·P4(변동성 비례). (레버리지, P1 발동 여부)."""
+    """공포·탐욕 레버리지 규칙(fear_rule) + P1(서킷브레이커)·P4(변동성 비례). (레버리지, P1 발동 여부)."""
     r0 = past[0]
     if r0["fng"] > 85:
         return 0.5, False
-    direct = (past[0]["fng"] < 15) or (past[2]["fng"] < 15)
-    lagged = (past[3]["fng"] < 15) or (past[4]["fng"] < 15)
+    if prm.fear_rule == "t0":     # 지연 공포 2배는 CNN 실지수 검증에서 무너져 제외(2026-10-09)
+        direct, lagged = past[0]["fng"] < 15, False
+    else:
+        direct = (past[0]["fng"] < 15) or (past[2]["fng"] < 15)
+        lagged = (past[3]["fng"] < 15) or (past[4]["fng"] < 15)
     if not (direct or (lagged and r0["growth_on"])):
         return 1.0, False
     recession = not r0["growth_on"] and not r0["inflation_on"]
@@ -148,7 +152,7 @@ def simulate(sig, prices, rf_annual, p1, p2, p3, p4, prm: Params = Params(), cos
 
 def name_of(p1, p2, p3, p4) -> str:
     tags = [t for t, on in (("P1(서킷)", p1), ("P2(원자재)", p2), ("P3(채권방어)", p3), ("P4(볼록성)", p4)) if on]
-    return " + ".join(tags) if tags else "Baseline (Model C-1 Ultra)"
+    return " + ".join(tags) if tags else "Baseline (IC + 당월 공포 레버리지)"
 
 
 def run_matrix(sig, prices, rf, prm: Params = Params(), **kw) -> pd.DataFrame:

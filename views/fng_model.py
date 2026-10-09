@@ -1,4 +1,4 @@
-"""Model C-1 Ultra · CNN Fear & Greed Dynamic Overlay Dashboard."""
+"""확정 전략 · IC 위험선호 지수 레버리지 오버레이 대시보드 (2026-10-09 개편)."""
 
 import sys
 from pathlib import Path
@@ -16,8 +16,8 @@ import fng_engine
 
 st.markdown("<style>div.block-container { padding-top: 2.6rem; }</style>", unsafe_allow_html=True)
 
-st.title("🧠 Fear & Greed x Model C-1 Ultra")
-st.caption("데이비드 바라디의 매크로 4국면 로테이션에 CNN 심리지수와 4개월 시차 레버리지(2.0x/0.5x)를 결합한 퀀트 전략")
+st.title("🧠 확정 전략 · IC 위험선호 지수 오버레이")
+st.caption("David Varadi 의 Inflation Compass 4국면 로테이션 + IC 위험선호 지수(4요소) 당월 극단값 레버리지(2.0x / 0.5x) + 침체 국면 채권방어")
 
 prices, t5yie = backtest.load_data()
 vix = yf.download("^VIX", start="2000-01-01", auto_adjust=True, progress=False)["Close"].squeeze().reindex(prices.index).ffill()
@@ -30,13 +30,14 @@ pos = fng_engine.calculate_model_c1_ultra_position(prices, t5yie, vix, hy_spread
 # 1. Top KPI Cards
 c1, c2, c3, c4 = st.columns(4)
 with c1:
-    st.metric("현재 F&G 점수", f"{pos['current_fng']:.1f}점", pos["current_rating_kr"])
+    st.metric(f"{pos['index_name']} (신호)", f"{pos['current_fng']:.1f}점", pos["current_rating_kr"])
 with c2:
-    st.metric("권장 노출 배수", f"{pos['exposure']:.1f}x", pos["fng_source"])
+    cnn = pos["cnn_score"]
+    st.metric("참고: CNN Fear & Greed", f"{cnn:.1f}점" if cnn is not None else "조회 실패", pos["cnn_rating_kr"])
 with c3:
-    st.metric("확정 전략 CAGR (실거래 조건)", "24.4%", "연구 조건 26.7% · MDD −24.5%")
+    st.metric("권장 노출 배수", f"{pos['exposure']:.1f}x", "지수 < 15 → 2x · > 85 → 0.5x")
 with c4:
-    st.metric("22.9년 누적 자산 (연구 조건)", "226.3배", "2008 낙폭 −18.1%")
+    st.metric("확정 전략 CAGR (실거래 조건)", "21.4%", "MDD −24.5% · 2008 −16.2%")
 
 st.divider()
 
@@ -44,43 +45,30 @@ st.divider()
 st.markdown("### ⚡ 오늘 시점 운용 가이드")
 st.info(f"**💡 판단 근거:** {pos['action_reason']}  \n**🎯 최종 목표 포트폴리오:** 기본 `{pos['base_weights']}` → 최종 `{pos['final_weights']}`")
 
-col_left, col_right = st.columns([1.5, 1])
-
-with col_left:
-    st.markdown("#### 📈 CNN Fear & Greed 역사적 시계열 (최근 2년)")
-    s_fng = pos["fng_series"].loc["2022-01-01":]
-    fig, ax = plt.subplots(figsize=(10, 4))
-    ax.plot(s_fng.index, s_fng.values, color="#2b6cb0", lw=1.5, label="Fear & Greed Index")
-    ax.axhline(85, color="#e53e3e", linestyle="--", alpha=0.7, label="Extreme Greed (>85: 0.5x 익절)")
-    ax.axhline(15, color="#38a169", linestyle="--", alpha=0.7, label="Extreme Fear (<15: 2.0x 레버리지)")
-    ax.axhline(50, color="#a0aec0", linestyle=":", alpha=0.5)
-    ax.fill_between(s_fng.index, 0, 15, color="#38a169", alpha=0.15)
-    ax.fill_between(s_fng.index, 85, 100, color="#e53e3e", alpha=0.15)
-    ax.set_ylim(0, 100)
-    ax.set_ylabel("F&G Score")
-    ax.legend(loc="upper right", fontsize=8)
-    fig.tight_layout()
-    st.pyplot(fig)
-
-with col_right:
-    st.markdown("#### 🕹️ 4개월 공포 룩백 메모리")
-    df_lags = pd.DataFrame({
-        "시점": ["당월 (t0)", "전월 (t-1)", "전전월 (t-2)", "3달 전 (t-3)", "4달 전 (t-4)"],
-        "F&G 점수": [f"{pos['t0_fng']:.1f}", f"{pos['t1_fng']:.1f}", f"{pos['t2_fng']:.1f}", f"{pos['t3_fng']:.1f}", f"{pos['t4_fng']:.1f}"],
-        "공포 트리거": [
-            "🚨 2.0배 발동" if pos["t0_fng"] < 15 else "정상",
-            "건너뜀 (휩소 방어)" if pos["t1_fng"] < 15 else "정상",
-            "🚨 2.0배 발동" if pos["t2_fng"] < 15 else "정상",
-            "🚨 2.0배 (강세장 시)" if pos["t3_fng"] < 15 else "정상",
-            "🚨 2.0배 (강세장 시)" if pos["t4_fng"] < 15 else "정상",
-        ],
-    })
-    st.dataframe(df_lags, hide_index=True, use_container_width=True)
+st.markdown(f"#### 📈 {pos['index_name']} vs CNN Fear & Greed (2022~)")
+s_idx = pos["fng_series"].loc["2022-01-01":]
+fig, ax = plt.subplots(figsize=(12, 4))
+ax.plot(s_idx.index, s_idx.values, color="#2b6cb0", lw=1.6, label="IC Risk Appetite Index (signal)")
+if pos["cnn_series"] is not None:
+    s_cnn = pos["cnn_series"].loc["2022-01-01":]
+    ax.plot(s_cnn.index, s_cnn.values, color="#a0aec0", lw=1.0, alpha=0.9, label="CNN Fear & Greed (reference)")
+ax.axhline(85, color="#e53e3e", linestyle="--", alpha=0.7, label="> 85: 0.5x")
+ax.axhline(15, color="#38a169", linestyle="--", alpha=0.7, label="< 15: 2.0x")
+ax.fill_between(s_idx.index, 0, 15, color="#38a169", alpha=0.12)
+ax.fill_between(s_idx.index, 85, 100, color="#e53e3e", alpha=0.12)
+ax.set_ylim(0, 100)
+ax.legend(loc="upper left", fontsize=8, ncol=2)
+fig.tight_layout()
+st.pyplot(fig)
+st.caption(
+    "IC 위험선호 지수 = S&P 125일선 괴리 · VIX 50일선 괴리(역) · S&P−국채 20일 수익률 차 · BAA10Y 스프레드(역)의 1년 백분위 평균. "
+    "CNN(7요소: 시장 폭·신고가·풋콜 포함)과 월말 상관 0.81이지만 극단 구간은 절반만 겹친다. 레버리지 규칙은 이 지수로 검증됐다."
+)
 
 st.divider()
 
 # 3. Strategy Comparison Table
-st.markdown("### 📊 23.4년 장기 퀀트 백테스트 종합 성과 비교 (2003~2026)")
+st.markdown("### 📊 (참고·종전) Model C 계열 백테스트 — 지연 공포 2배 포함")
 perf_data = [
     {"전략": "0. Baseline IC (1.0x 기준)", "CAGR": "23.11%", "23.4년 누적": "116.8배", "Sharpe": 1.192, "MDD": "-23.69%", "Calmar": 0.975, "2020s CAGR": "31.64%", "p-value": "-"},
     {"전략": "Model C (당월만 2.0x/0.5x)", "CAGR": "25.24%", "23.4년 누적": "172.9배", "Sharpe": 1.187, "MDD": "-25.75%", "Calmar": 0.980, "2020s CAGR": "36.00%", "p-value": "0.0392"},
@@ -89,15 +77,18 @@ perf_data = [
 ]
 st.dataframe(pd.DataFrame(perf_data), hide_index=True, use_container_width=True)
 st.caption(
-    "⚠️ 위 표는 종전 비용 모델(차입 이자 = SHY 가격 수익률, 거래비용 없음)로 과대평가된 수치다. "
-    "정정 모델(DTB3 차입, 월말 30bp) 기준 확정 전략(침체 국면 1배 50/50 · 2배 늘린 몫은 IEF · IEF < 200일선이면 SHY): "
-    "연구 조건 CAGR 26.72% / MDD −24.47%, 실거래 조건(전일 FRED) 24.40% / −24.47% — matrix_16_combinations_evaluation_report.md"
+    "⚠️ 위 표는 종전 비용 모델(차입 이자 = SHY 가격 수익률, 거래비용 없음)과 지연 공포 2배(t-2~t-4)를 쓴 과대평가 수치다. "
+    "지연 공포 2배는 CNN 실지수 교차검증에서 MDD −39.5%(2026-05~07)로 무너져 제외했다. "
+    "확정 전략(당월 지수 < 15 만 2배 · 침체 국면 1배 50/50, 2배 늘린 몫은 IEF · IEF < 200일선이면 SHY): "
+    "연구 조건 CAGR 22.96% / MDD −24.47%, 실거래 조건(전일 FRED) 21.37% / −24.47% — matrix_16_combinations_evaluation_report.md"
 )
 
 st.markdown(
     """
-    > **💡 왜 4개월(t-4) 룩백이 최적 절정점(Peak)인가?**  
-    > 극단적 패닉($F&G < 15$) 이후 시장은 평균 **16주(4개월)** 동안 가장 가파른 유동성 팽창 상승 랠리를 전개합니다.  
-    > $t-4$까지 2.0배 레버리지를 유지하면 **Sharpe 1.202 / Calmar 1.129 / CAGR 29.07%로 전 지표가 역사적 최고점**을 기록하며, $t-5$ 이후로는 알파가 감쇠합니다.
+    > **💡 왜 당월 공포만 2배인가? (2026-10-09)**
+    > 공포 레버리지의 근거는 투매로 위험 프리미엄이 비싸진 순간에 사는 것이다 — 그 근거는 **당월**에만 있다.
+    > 2~4개월 뒤엔 지수가 대개 정상으로 돌아와 있어, 할인 없는 가격에 업종 하나를 2배로 사는 셈이 된다.
+    > "4개월"은 대리 지표로 기간을 훑어 고른 값이었고, CNN 실지수로 돌리면 MDD −39.5%(2026-05~07)로 무너졌다.
+    > 당월 규칙은 두 지수 모두에서 MDD 가 레버리지 없을 때 수준(IC −22.9%, CNN −24.2%, 2011~)이다.
     """
 )

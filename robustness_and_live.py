@@ -25,11 +25,31 @@ def row(r: dict) -> str:
     return f"{r['CAGR']:.2%} | {r['MDD']:.2%} | {r['Calmar']:.3f} | {r['Sharpe']:.2f} | {r['2008_MDD']:.2%} | {r['2022_Ret']:+.1%}"
 
 
+def cnn_cross_check(prices, t5yie, vix, baa10y, dtb3) -> list[str]:
+    """③ 지수 교차검증: 연구 지수(IC 위험선호 지수, 4요소 대리) 대신 CNN 실지수(2011~)를 넣어도 규칙이 버티나."""
+    import fng_engine
+    cnn = fng_engine.load_cnn_archive()
+    out = ["", "## ③ 지수 교차검증 — IC 위험선호 지수 vs CNN Fear & Greed 실지수 (2011-06~, FRED 1일)", ""]
+    if cnn is None:
+        return out + ["CNN 아카이브 조회 실패 — 생략"]
+    sig, _ = compute_signals(prices, t5yie, vix, baa10y, fred_lag=1)
+    sc = sig.copy()
+    sc["fng"] = cnn.reindex(sc.index).ffill()
+    sc = sc.loc["2011-01-03":].dropna(subset=["fng"])
+    out += ["| 공포 2배 규칙 | 지수 | CAGR | MDD | Calmar | 최악 월 |", "|---|---|---|---|---|---|"]
+    for rule, lab in (("t0", "당월만 (확정)"), ("ultra", "당월·2·3~4개월 전 (종전)")):
+        for name, ss in (("IC 위험선호", sig), ("CNN 실지수", sc)):
+            r = simulate(ss, prices, dtb3, 0, 0, 1, 0, replace(Params(), fear_rule=rule), start="2011-06-30")
+            out.append(f"| {lab} | {name} | {r['CAGR']:.2%} | {r['MDD']:.2%} | {r['Calmar']:.3f} | {r['monthly_ret'].min():+.1%} |")
+    return out
+
+
 def main() -> int:
     prices, t5yie, vix, baa10y, dtb3 = load_master_data()
     lines = ["# 16개 조합 후속 점검 — 실거래 시점 · 임계값 견고성 (2026-10-08)", "",
              "모두 월별 모델(월말 종가 체결·월중 보유), 차입·현금 = DTB3(+50bp 차입), 거래비용 = 월말 매매 명목 × 30bp.",
-             "침체 국면 = XLP 50 + IEF 50(1배), 공포 2배 때 늘린 몫은 IEF 에만, IEF < 200일선이면 SHY 100%·1배 (2026-10-09 확정).", "",
+             "침체 국면 = XLP 50 + IEF 50(1배), 공포 2배 때 늘린 몫은 IEF 에만, IEF < 200일선이면 SHY 100%·1배 (2026-10-09 확정).",
+             "공포 2배 = 당월 IC 위험선호 지수 < 15 만(fear_rule='t0', 2026-10-09 확정).", "",
              "## ① 실거래 시점 — FRED 지표(T5YIE·BAA10Y) 지연", "",
              "| 신호 시점 | 모델 | CAGR | MDD | Calmar | Sharpe | 2008 MDD | 2022 수익 |", "|---|---|---|---|---|---|---|---|"]
     variants = {"FRED 0일(연구)": dict(fred_lag=0), "FRED 1일(실거래)": dict(fred_lag=1), "FRED 2일": dict(fred_lag=2)}
@@ -63,6 +83,7 @@ def main() -> int:
         for fl in (1.0, 1.3, 1.6):
             r = simulate(sig, prices, dtb3, 0, 0, 0, 1, replace(Params(), p4_target=tgt, p4_floor=fl))
             lines.append(f"| {tgt} | {fl} | {(r['CAGR'] - base['CAGR']) * 100:+.2f}%p | {r['MDD']:.2%} | {r['Calmar']:.3f} | {r['Sharpe']:.2f} |")
+    lines += cnn_cross_check(prices, t5yie, vix, baa10y, dtb3)
     text = "\n".join(lines) + "\n"
     with open("robustness_and_live_report.md", "w", encoding="utf-8") as f:
         f.write(text)

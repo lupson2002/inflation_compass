@@ -1,10 +1,10 @@
-"""CNN Fear & Greed Engine & Model C-1 Ultra Position Calculator.
+"""IC 위험선호 지수 & 확정 전략 포지션 계산기 (2026-10-09 개편).
 
-Provides:
-  - Real-time and Synthetic Fear & Greed index fetching
-  - Model C-1 Ultra signal calculation (2.0x / 1.0x / 0.5x exposure)
-  - Historical lookback flags (t0, t-1, t-2, t-3, t-4)
-  - Helper functions for Streamlit UI and Telegram daily alerts
+- 신호: **IC 위험선호 지수** — 4요소(S&P 모멘텀·VIX·주식-채권 20일 차이·BAA 스프레드)를 1년 백분위로 평균한
+  0~100 지수. 연구(run_16_matrix_experiments)와 같은 지수라 백테스트 규칙이 그대로 맞는다.
+  (종전엔 "CNN Fear & Greed" 로 불렀지만 CNN 지수가 아니라 이 대리 지표였다.)
+- 참고: CNN Fear & Greed 실지수(현재값 + GitHub 아카이브 2011~)는 화면·메시지에 비교용으로만 표시한다.
+- 레버리지: 당월 지수 < 15 → 2배, > 85 → 0.5배, 그 외 1배. 지연 공포(2~4개월 전) 2배는 CNN 검증에서 무너져 제외.
 """
 
 import json
@@ -22,6 +22,8 @@ DATA_DIR = BASE_DIR / "data"
 DB_PATH = DATA_DIR / "inflation_compass.db"
 
 CNN_API_URL = "https://production.dataviz.cnn.io/index/fearandgreed/graphdata"
+CNN_ARCHIVE_URL = "https://raw.githubusercontent.com/whit3rabbit/fear-greed-data/main/fear-greed.csv"   # 2011~ 일별
+INDEX_NAME = "IC 위험선호 지수"
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
     "Accept": "application/json, text/plain, */*",
@@ -54,8 +56,19 @@ def get_cnn_live_fng():
     return None, None, None
 
 
+def load_cnn_archive():
+    """CNN Fear & Greed 일별 이력(GitHub 공개 아카이브, 2011~). 실패 시 None — 참고 표시용."""
+    try:
+        df = pd.read_csv(CNN_ARCHIVE_URL)
+        s_ = df.set_index(pd.to_datetime(df["Date"]))["Fear Greed"].astype(float).sort_index()
+        return s_[~s_.index.duplicated(keep="last")]
+    except Exception as e:
+        print(f"[F&G Engine] CNN archive fetch failed: {e}")
+        return None
+
+
 def compute_synthetic_fng_series(prices, hy_spread, vix):
-    """Compute daily 4-component synthetic Fear & Greed index (2000~2026)."""
+    """IC 위험선호 지수(일별 0~100) — 4요소 1년 백분위 평균. 연구 compute_signals 의 fng 와 같은 식."""
     # 1. Momentum (SPY vs 125 SMA)
     mom = (prices["SPY"] - prices["SPY"].rolling(125).mean()) / prices["SPY"].rolling(125).mean()
     score_mom = mom.rolling(252).rank(pct=True) * 100
@@ -92,18 +105,13 @@ def get_fng_rating_kr(score):
 IEF_MA_DAYS = 200          # 채권방어: 침체 국면에서 IEF < 200일선이면 SHY 100%
 
 
-def fear_exposure(t0: float, t2: float, t3: float, t4: float, growth_on: bool) -> tuple[float, str]:
-    """Model C-1 Ultra 노출 배수 — 백테스트(run_16_matrix_experiments.leverage)와 같은 규칙."""
+def fear_exposure(t0: float, growth_on: bool = True) -> tuple[float, str]:
+    """노출 배수 — 연구 leverage(fear_rule="t0") 와 같은 규칙. t0 = 판단 시점 IC 위험선호 지수."""
     if t0 > 85:
-        return 0.5, f"극단적 탐욕 (F&G {t0:.1f} > 85) ➔ 0.5배 (절반 현금)"
+        return 0.5, f"극단적 탐욕 ({INDEX_NAME} {t0:.1f} > 85) ➔ 0.5배 (절반 단기채)"
     if t0 < 15:
-        return 2.0, f"당월 극단적 공포 (F&G {t0:.1f} < 15) ➔ 2.0배"
-    if t2 < 15:
-        return 2.0, f"2개월 전 극단적 공포 ({t2:.1f} < 15) ➔ 2.0배"
-    if (t3 < 15 or t4 < 15) and growth_on:
-        lag, val = ("3개월", t3) if t3 < 15 else ("4개월", t4)
-        return 2.0, f"{lag} 전 공포 ({val:.1f} < 15) + S&P 200일선 위 ➔ 2.0배"
-    return 1.0, "정상 국면 ➔ 1.0배"
+        return 2.0, f"극단적 공포 ({INDEX_NAME} {t0:.1f} < 15) ➔ 2.0배"
+    return 1.0, f"정상 국면 ({INDEX_NAME} {t0:.1f}) ➔ 1.0배"
 
 
 def confirmed_weights(growth_on: bool, inflation_on: bool, ief_below_ma: bool, exposure: float) -> dict:
@@ -153,53 +161,39 @@ def _macro_series(prices, t5yie):
     return growth, inflation, ief_below
 
 
-def _decision_at(fng_series, growth, inflation, ief_below, month_ends, j, t0_override=None):
-    """month_ends[j] 시점 판단. 공포 룩백은 그 시점 기준 당월·2·3·4개월 전 월말."""
-    d = month_ends[j]
-    look = [float(fng_series.loc[month_ends[j - k]]) if len(month_ends) + j - k >= 0 else np.nan for k in range(5)]
-    t0 = look[0] if t0_override is None else t0_override
+def _decision_at(index_series, growth, inflation, ief_below, d):
+    """d 시점 판단(그 날의 IC 위험선호 지수·국면·IEF 200일선)."""
+    t0 = float(index_series.loc[d])
     g, inf, below = bool(growth.loc[d]), bool(inflation.loc[d]), bool(ief_below.loc[d])
-    exposure, reason = fear_exposure(t0, look[2], look[3], look[4], g)
+    exposure, reason = fear_exposure(t0, g)
     w = confirmed_weights(g, inf, below, exposure)
     if w["bond_shield"]:
         reason += " · 채권방어(IEF < 200일선) ➔ 단기채 100%" + (", 1배 제한" if exposure > 1 else "")
     elif not g and not inf and exposure > 1:
         reason += " · 침체 국면: 늘린 몫은 IEF 에만"
-    return {"date": d, "growth_on": g, "inflation_on": inf, "reason": reason, "lookback": look, **w}
+    return {"date": d, "index": t0, "growth_on": g, "inflation_on": inf, "reason": reason, **w}
 
 
 def calculate_model_c1_ultra_position(prices, t5yie, vix, hy_spread):
-    """확정 전략의 오늘 시점 포지션과 직전 월말 결정.
-
-    공포·탐욕은 CNN 실지수(최근 1년 일별 이력 + 현재값)를 쓴다. CNN 이 응답하지 않을 때만
-    합성 대리 지표로 대신하고 fng_source 에 그 사실을 남긴다(대시보드·텔레그램에 표시).
-    """
-    fng_synth = compute_synthetic_fng_series(prices, hy_spread, vix)
-    live_score, live_rating, live_hist = get_cnn_live_fng()
-
-    fng_series = fng_synth.copy()
-    cnn_ok = live_hist is not None and not live_hist.empty
-    if cnn_ok:
-        common_idx = live_hist.index.intersection(fng_series.index)
-        fng_series.loc[common_idx] = live_hist.loc[common_idx]
-    fng_source = "CNN 실지수" if live_score is not None else "⚠️ 합성 대리 지표 (CNN 응답 없음)"
-
-    current_fng = float(live_score) if live_score is not None else float(fng_series.iloc[-1])
-    current_rating_kr, current_emoji = get_fng_rating_kr(current_fng)
-
+    """확정 전략의 오늘 시점 포지션과 직전 월말 결정(신호 = IC 위험선호 지수, CNN 은 참고)."""
+    index_series = compute_synthetic_fng_series(prices, hy_spread, vix).dropna()
     growth, inflation, ief_below = _macro_series(prices, t5yie)
-    month_ends = sorted(fng_series.groupby([fng_series.index.year, fng_series.index.month]).apply(lambda x: x.index[-1]).values)
-    month_ends = [pd.Timestamp(d) for d in month_ends]
+    me = sorted(index_series.groupby([index_series.index.year, index_series.index.month]).apply(lambda x: x.index[-1]).values)
+    me = [pd.Timestamp(d) for d in me]
+    live = _decision_at(index_series, growth, inflation, ief_below, me[-1])
+    prev = _decision_at(index_series, growth, inflation, ief_below, me[-2])
 
-    live = _decision_at(fng_series, growth, inflation, ief_below, month_ends, -1, t0_override=current_fng)
-    prev = _decision_at(fng_series, growth, inflation, ief_below, month_ends, -2)
-    t0, t1, t2, t3, t4 = live["lookback"][0], live["lookback"][1], live["lookback"][2], live["lookback"][3], live["lookback"][4]
-
+    cnn_score, cnn_rating, _ = get_cnn_live_fng()
+    cnn_hist = load_cnn_archive()
+    cur = live["index"]
+    rating_kr, emoji = get_fng_rating_kr(cur)
     return {
-        "current_fng": current_fng,
-        "current_rating_kr": current_rating_kr,
-        "current_emoji": current_emoji,
-        "fng_source": fng_source,
+        "index_name": INDEX_NAME,
+        "current_fng": cur,
+        "current_rating_kr": rating_kr,
+        "current_emoji": emoji,
+        "cnn_score": cnn_score,
+        "cnn_rating_kr": get_fng_rating_kr(cnn_score)[0] if cnn_score is not None else "조회 실패",
         "growth_on": live["growth_on"],
         "inflation_on": live["inflation_on"],
         "bond_shield": live["bond_shield"],
@@ -208,10 +202,6 @@ def calculate_model_c1_ultra_position(prices, t5yie, vix, hy_spread):
         "action_reason": live["reason"],
         "final_weights": live["final_weights"],
         "prev_decision": prev,
-        "t0_fng": t0,
-        "t1_fng": t1,
-        "t2_fng": t2,
-        "t3_fng": t3,
-        "t4_fng": t4,
-        "fng_series": fng_series,
+        "fng_series": index_series,
+        "cnn_series": cnn_hist,
     }
