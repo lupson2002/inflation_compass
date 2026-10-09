@@ -1,4 +1,8 @@
-"""Strategy description and calculation methodology - static reference page."""
+"""Strategy description and calculation methodology - static reference page.
+
+원조 Inflation Compass 설명은 그대로 두고, 확정 전략(2026-10-09)의 변경·개선 부분을 덧붙인다.
+수치 출처: matrix_16_combinations_evaluation_report.md (정정판 3), robustness_and_live_report.md.
+"""
 
 import streamlit as st
 
@@ -15,19 +19,24 @@ st.markdown(
     .ic-quad .cell .ticker { font-size: 19px; font-weight: 700; color: #16191a; line-height: 1.3; }
     .ic-quad .cell .kr { font-size: 12px; color: #52564d; }
     .ic-quad .cell .label { font-size: 11.5px; color: #8a8d84; font-style: italic; }
+    .ic-quad .cell .new { font-size: 11px; color: #2f7d4f; font-weight: 600; margin-top: 4px; }
     .ic-body p, .ic-body ul { margin: 0 0 8px; font-size: 14px; line-height: 1.48; }
     .ic-body ul { padding-left: 20px; }
     .ic-body li { margin-bottom: 3px; }
-    .ic-body h4 { font-size: 14px; margin: 10px 0 4px; font-weight: 700; color: #16191a; }
+    .ic-body h4 { font-size: 14px; margin: 14px 0 4px; font-weight: 700; color: #16191a; }
     .ic-body h4:first-child { margin-top: 0; }
     .ic-body code { font-size: 13px; background: #f2f3ee; padding: 1px 5px; border-radius: 3px; }
     .ic-body .formula { background: #f2f3ee; border-radius: 5px; padding: 8px 12px; font-size: 13px; margin: 4px 0 8px; line-height: 1.6; }
+    .ic-body table { border-collapse: collapse; font-size: 13px; margin: 6px 0 10px; }
+    .ic-body th, .ic-body td { border: 1px solid #e1e0d9; padding: 5px 9px; text-align: left; vertical-align: top; }
+    .ic-body th { background: #f2f3ee; font-weight: 600; }
+    .ic-body .chg { color: #2f7d4f; font-weight: 600; }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
-tab_strategy, tab_signals, tab_cost = st.tabs(["전략설명", "신호", "매매비용"])
+tab_strategy, tab_signals, tab_cost, tab_why = st.tabs(["전략설명", "신호", "매매·비용", "개선 근거"])
 
 with tab_strategy:
     st.markdown(
@@ -48,9 +57,31 @@ with tab_strategy:
           <div class="cell" style="background:#fbe3d8"><div class="ticker">XLK</div><div class="kr">기술</div><div class="label">goldilocks</div></div>
           <div class="rowhdr">성장 ↓</div>
           <div class="cell" style="background:#e6e1f3"><div class="ticker">XLU</div><div class="kr">유틸리티</div><div class="label">stagflation</div></div>
-          <div class="cell" style="background:linear-gradient(90deg,#fbedd0 50%,#fbe1ea 50%)"><div class="ticker">XLP + IEF</div><div class="kr">필수소비재 + 7-10년 국채</div><div class="label">disinflation</div></div>
+          <div class="cell" style="background:linear-gradient(90deg,#fbedd0 50%,#fbe1ea 50%)"><div class="ticker">XLP + IEF</div><div class="kr">필수소비재 + 7-10년 국채</div><div class="label">disinflation</div>
+            <div class="new">확정: IEF &lt; 200일선이면 SHY 100%</div></div>
         </div>
         <p style="margin-top:20px">참고: <a href="https://cssanalytics.wordpress.com/2026/07/27/the-inflation-compass-model/" target="_blank">cssanalytics.wordpress.com</a></p>
+
+        <h4>확정 전략 — 원조 대비 바뀐 점 (2026-10-09)</h4>
+        <p>원조의 4국면 판정과 섹터 배분은 그대로 쓰고, 아래 세 가지를 더했습니다.</p>
+        <table>
+        <tr><th>항목</th><th>원조 (저자)</th><th>확정 전략</th></tr>
+        <tr><td>침체 국면 채권방어</td><td>XLP 50 + IEF 50 고정</td>
+            <td class="chg">IEF 가 200일선 아래면 <b>SHY(1-3년 단기채) 100%</b></td></tr>
+        <tr><td>레버리지</td><td>없음 (항상 1배)</td>
+            <td class="chg">IC 위험선호 지수 월말 값 &lt; 15 → <b>2배</b>, &gt; 85 → <b>0.5배</b>, 그 외 1배</td></tr>
+        <tr><td>침체 국면 2배</td><td>—</td>
+            <td class="chg">늘린 1배는 <b>IEF 에만</b> → XLP 50 + IEF 150. SHY 로 바뀐 달은 1배로 제한</td></tr>
+        <tr><td>매매 시점</td><td>월말 종가</td>
+            <td>월말 오후, <b>종가 전</b> 체결 (FRED 지표는 전일 값)</td></tr>
+        </table>
+        <p>성과 (2003-09 ~, 월말 30bp·DTB3 차입 반영):</p>
+        <table>
+        <tr><th></th><th>연수익</th><th>최대낙폭</th><th>2008 낙폭</th><th>2022 수익</th></tr>
+        <tr><td>원조 (레버리지 없음)</td><td>19.1%</td><td>−24.5%</td><td>−18.8%</td><td>+33.7%</td></tr>
+        <tr><td><b>확정 전략 · 실거래 조건</b></td><td><b>21.4%</b></td><td><b>−24.5%</b></td><td><b>−16.2%</b></td><td><b>+63.7%</b></td></tr>
+        </table>
+        <p>최대낙폭 −24.5% 는 2011-04~08(미국 신용등급 강등)에 1배 주식 국면에서 나온 것으로, 레버리지·침체 규칙과 무관합니다.</p>
         </div>
         """,
         unsafe_allow_html=True,
@@ -85,6 +116,28 @@ with tab_signals:
         </div>
         <p>이 비율이 상승 추세(60일 회귀기울기 &gt; 0)라는 건 리플레이션 수혜 섹터가 방어 섹터 대비
         계속 아웃퍼폼하고 있다는 뜻입니다.</p>
+
+        <h4><span class="chg">[확정]</span> 채권방어 신호</h4>
+        <p>침체 국면(성장 하락 · 인플레이션 하락)에서만 봅니다. IEF 종가가 200일 이동평균 이하이면
+        국채가 하락 추세(금리 상승)라 보고 XLP+IEF 대신 SHY 100% 로 피합니다.</p>
+        <div class="formula">bond-shield = 침체 국면 AND IEF ≤ IEF 200일 평균  →  SHY 100%, 레버리지 1배 제한</div>
+
+        <h4><span class="chg">[확정]</span> IC 위험선호 지수 (레버리지 신호)</h4>
+        <p>시장 심리를 0~100 으로 나타내는 4요소 지수입니다. 각 요소를 최근 1년(252거래일) 백분위로 바꿔 평균합니다.</p>
+        <div class="formula">
+        ① 모멘텀 = SPY 의 125일 평균 대비 괴리<br/>
+        ② 변동성 = VIX 의 50일 평균 대비 괴리 (높을수록 공포 → 역순)<br/>
+        ③ 안전자산 수요 = SPY 20일 수익률 − IEF 20일 수익률<br/>
+        ④ 신용 = BAA10Y 스프레드 (넓을수록 공포 → 역순)<br/>
+        IC 위험선호 지수 = 평균(①~④ 의 1년 백분위) × 100
+        </div>
+        <div class="formula">
+        지수 &lt; 15 (극단적 공포) → 2배 · 지수 &gt; 85 (극단적 탐욕) → 0.5배 (나머지 단기채) · 그 외 1배<br/>
+        판단은 <b>월말 당월 값만</b> 봅니다 — 2~4개월 전 공포로 2배를 거는 규칙은 쓰지 않습니다.
+        </div>
+        <p>CNN Fear &amp; Greed(7요소)는 화면·텔레그램에 <b>참고로만</b>표시합니다. 두 지수는 월말 상관 0.81 이지만
+        극단 구간(&lt;15)은 절반만 겹치고, 레버리지 규칙은 IC 위험선호 지수로 검증됐기 때문입니다.
+        (종전 화면에서 "CNN Fear &amp; Greed" 로 표시하던 값은 실제로는 이 지수였습니다.)</p>
         </div>
         """,
         unsafe_allow_html=True,
@@ -94,9 +147,74 @@ with tab_cost:
     st.markdown(
         """
         <div class="ic-body">
+        <h4>매매 시점 (실거래)</h4>
+        <ul>
+        <li>매월 마지막 거래일 <b>오후</b>에 모델을 돌리고 <b>종가 전</b>에 체결합니다. 가격·VIX 는 장중 값(≈ 종가)을 씁니다.</li>
+        <li>FRED 지표(T5YIE·BAA10Y)는 그날 값이 다음 영업일에 게시되므로 <b>전일 값</b>으로 판단합니다
+            (연구 조건 대비 연수익 약 −1.6%p, 최대낙폭 변화 없음).</li>
+        <li>다음 날로 미루면 연수익 약 −2.5%p, 2008 낙폭 −16% → −20% 로 나빠집니다 — 반드시 당일 체결.</li>
+        <li>월중에는 보유만 합니다(일별 리밸런싱 없음, 레버리지 비율은 월중 가격에 따라 변함).</li>
+        </ul>
+
         <h4>매매비용 가정</h4>
         <p>매매비용은 턴오버 × 입력%로, 리밸런싱이 실제로 포지션을 바꾼 다음 거래일에만 적용됩니다
-        (같은 포지션을 유지하는 달은 비용이 0).</p>
+        (같은 포지션을 유지하는 달은 비용이 0). — 원조 IC 대시보드의 사이드바 비용</p>
+        <p><span class="chg">[확정]</span> 확정 전략 성과는 월말 리밸런싱 때 매매한 명목금액 × <b>30bp(편도)</b>로 계산합니다
+        (평균 회전율 월 65% → 연 약 2.3%p). 섹터 ETF 실제 스프레드보다 보수적인 값입니다.</p>
+
+        <h4><span class="chg">[확정]</span> 차입·현금 이자</h4>
+        <ul>
+        <li>2배일 때 빌린 금액: (3개월 T-bill DTB3 + 0.5%)/연 이자</li>
+        <li>0.5배일 때 남는 50%: 단기채(SHY)로 표시, 연구에서는 T-bill 이자로 계산</li>
+        </ul>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+with tab_why:
+    st.markdown(
+        """
+        <div class="ic-body">
+        <h4>침체 국면: 왜 1배는 50/50 을 지키고 2배만 IEF 로?</h4>
+        <p>저자는 침체 국면을 "2008 같은 본격 침체인지 짧은 조정인지 미리 알 수 없으니, 국채는 침체를 막고
+        필수소비재는 반등에 참여한다"는 이유로 반반 나눴습니다. 레버리지가 없으면 50/50 과 IEF 100% 의 수익은
+        같았고, 저자 설계가 맞습니다.</p>
+        <p>문제는 공포 레버리지가 대부분 침체 국면에서 켜진다는 점입니다. 필수소비재도 위기에는 주식이라
+        2배가 걸리면 꼬리가 커집니다(2008-09 XLP −12.6% → 2배 −25%, 2020-03 월중 −25.7%).
+        거시·채권·주식·리스크·반대검토 5개 관점 검토의 공통 결론은 "레버리지는 변동성이 낮고 위기에 오르는 국채에"였습니다.
+        그래서 1배 달은 저자 원안을 지키고, 늘린 몫만 IEF 에 넣습니다.</p>
+
+        <h4>채권방어: 왜 SHY 100%?</h4>
+        <p>국채가 200일선 아래라는 건 금리가 오르는 중이라는 뜻입니다(2022 형). 이때는 국채도 필수소비재도
+        방어가 되지 않아 둘 다 단기채로 피합니다. 빌려서 단기채를 사는 건 기대수익이 0 이하라 1배로 제한합니다.
+        2022년 수익 +51.8% → +63.6%.</p>
+
+        <h4>레버리지: 왜 당월 공포만?</h4>
+        <p>공포 레버리지의 근거는 투매로 위험 프리미엄이 비싸진 순간에 사는 것이고, 그 근거는 당월에만 있습니다.
+        2~4개월 뒤엔 지수가 대개 정상으로 돌아와 있어 할인 없는 가격에 업종 하나를 2배로 사게 됩니다.
+        종전 규칙(2·3·4개월 전 공포에도 2배)은 CNN 실지수로 돌리면 최대낙폭이 −39.5% 로 무너졌습니다 —
+        실제 2026-05~07: 3월 CNN 공포 → 6월 XLE 2배 −9.9%, 7월 XLK 2배 −15.9%.</p>
+        <table>
+        <tr><th>공포 2배 규칙 (2011~, 실거래)</th><th>IC 위험선호 지수</th><th>CNN 실지수</th></tr>
+        <tr><td><b>당월만 (확정)</b></td><td>20.3% / −22.9%</td><td>19.5% / −24.2%</td></tr>
+        <tr><td>당월·2·3~4개월 전 (종전)</td><td>23.7% / −22.9%</td><td>22.6% / <b>−39.5%</b></td></tr>
+        </table>
+
+        <h4>검토했지만 쓰지 않은 것</h4>
+        <ul>
+        <li><b>서킷브레이커</b>(BAA10Y &gt; 3.2% 또는 VIX &gt; 35 이면 2배 금지) — 침체 국면 규칙이 같은 문제를 직접 풀어
+            2008 낙폭만 키우고 수익을 깎음</li>
+        <li><b>원자재 대체</b>(스태그플레이션에 DBC+XLE) — 2022 엔 이기지만 2008 하반기 원자재 폭락으로 최대낙폭 −29.7%</li>
+        <li><b>변동성 비례 레버리지</b> — 모든 설정에서 수익 감소, 낙폭 개선 없음</li>
+        </ul>
+
+        <h4>남은 위험</h4>
+        <ul>
+        <li>2011형 급락(1배 주식 국면, 국면 판단 지연) — 월별 모델로는 줄일 수 없음</li>
+        <li>인플레 신호를 통과하는 금리 급등형 침체에서 IEF 150% (200일선 전환은 느린 약세만 잡음)</li>
+        <li>위기 표본이 몇 번뿐이라 통계 검정보다 경제적 논리로 고른 규칙입니다</li>
+        </ul>
         </div>
         """,
         unsafe_allow_html=True,

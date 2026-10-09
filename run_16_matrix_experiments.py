@@ -17,7 +17,6 @@ from dataclasses import dataclass, field
 
 import numpy as np
 import pandas as pd
-from scipy import stats
 
 from test_all_16_combinations import compute_signals, load_master_data
 
@@ -156,6 +155,7 @@ def name_of(p1, p2, p3, p4) -> str:
 
 
 def run_matrix(sig, prices, rf, prm: Params = Params(), **kw) -> pd.DataFrame:
+    from scipy import stats      # 연구용 — 대시보드(클라우드)는 scipy 없이 이 모듈을 쓴다
     base = simulate(sig, prices, rf, 0, 0, 0, 0, prm, **kw)
     rows = []
     for idx, (p1, p2, p3, p4) in enumerate(itertools.product([0, 1], repeat=4)):
@@ -165,6 +165,15 @@ def run_matrix(sig, prices, rf, prm: Params = Params(), **kw) -> pd.DataFrame:
         rows.append({"Model_ID": f"M{idx:02d}", "P1": p1, "P2": p2, "P3": p3, "P4": p4, "Name": name_of(p1, p2, p3, p4),
                      **{k: v for k, v in r.items() if k not in ("equity", "monthly_ret")}, "p_value": p_val})
     return pd.DataFrame(rows)
+
+
+
+def confirmed_curve(fred_lag: int = 1) -> pd.DataFrame:
+    """확정 전략(M02, 실거래 조건) 일별 자산 곡선 — 대시보드용(backtest.refresh_if_new_month 가 DB 에 저장)."""
+    prices, t5yie, vix, baa10y, dtb3 = load_master_data()
+    sig, _ = compute_signals(prices, t5yie, vix, baa10y, fred_lag=fred_lag)
+    eq = simulate(sig, prices, dtb3, 0, 0, 1, 0)["equity"]
+    return pd.DataFrame({"confirmed_equity": eq / eq.iloc[0]})
 
 
 if __name__ == "__main__":

@@ -25,7 +25,7 @@ WEIGHT_COLORS = {"VTI": "#2a78d6", "IYR": "#eb6834", "LQD": "#1baf7a", "DBC": "#
 ASSET_ORDER = ["VTI", "IYR", "LQD", "DBC", "SHY"]
 
 
-@st.cache_data
+@st.cache_data(ttl=6 * 3600)
 def load_data():
     conn = sqlite3.connect(DB_PATH)
     daily = pd.read_sql("SELECT * FROM backtest_daily_returns ORDER BY date", conn, parse_dates=["date"]).set_index("date")

@@ -38,9 +38,9 @@ if _refresh_err:
     st.warning(_refresh_err)
 
 pages = [
-    st.Page("views/fng_model.py", title="Fear & Greed · Model C-1 Ultra", default=True),
+    st.Page("views/fng_model.py", title="Inflation Compass · 확정 전략 (IC 위험선호 레버리지)", default=True),
     st.Page("views/position.py", title="Inflation Compass · 현재 포지션"),
-    st.Page("views/dashboard.py", title="Inflation Compass · 대시보드"),
+    st.Page("views/dashboard.py", title="Inflation Compass · 백테스트 대시보드"),
     st.Page("views/methodology.py", title="Inflation Compass · 전략 설명"),
     st.Page("views/pct_dashboard.py", title="Percentile Channels · 대시보드"),
     st.Page("views/pct_position.py", title="Percentile Channels · 현재 포지션"),

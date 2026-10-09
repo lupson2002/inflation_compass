@@ -11,7 +11,6 @@ import sqlite3
 from pathlib import Path
 import numpy as np
 import pandas as pd
-from scipy import stats
 import yfinance as yf
 
 BASE_DIR = Path(__file__).parent

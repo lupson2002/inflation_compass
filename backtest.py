@@ -330,6 +330,20 @@ def main():
 
 
 
+def save_confirmed_curve():
+    """확정 전략(침체 규칙·채권방어·당월 공포 레버리지, 실거래 조건) 일별 자산 곡선을 confirmed_equity 표에 저장."""
+    try:
+        import run_16_matrix_experiments as r16
+        df = r16.confirmed_curve(fred_lag=1)
+        conn = sqlite3.connect(DB_PATH)
+        df.reset_index(names="date").assign(date=lambda d: d.date.dt.strftime("%Y-%m-%d")).to_sql(
+            "confirmed_equity", conn, if_exists="replace", index=False)
+        conn.close()
+        print(f"[backtest] confirmed_equity 저장 ({df.index[0].date()} ~ {df.index[-1].date()})")
+    except Exception as e:
+        print(f"[backtest] 확정 전략 곡선 저장 실패: {e}")
+
+
 def refresh_if_new_month():
     """새 월말 데이터가 들어오면 main() 을 다시 돌려 DB 성과 표를 갱신한다(월 1회, 텔레그램·대시보드 공용)."""
     try:
@@ -342,6 +356,7 @@ def refresh_if_new_month():
         if done is None or pd.Timestamp(done) < last_month_end:
             print(f"[backtest] 성과 표 갱신 ({done} → {last_month_end.date()} 월말 반영)")
             main()
+            save_confirmed_curve()
     except Exception as e:
         print(f"[backtest] 갱신 실패 — 기존 성과 표 사용: {e}")
 

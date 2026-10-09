@@ -97,7 +97,7 @@ with fcol3:
 
 st.divider()
 
-# 2. Original Baseline IC Regime Position Cards
+# 2. 확정 전략 포지션 카드 — 직전 월말 결정 vs 오늘 계산
 st.markdown("### 🧭 확정 전략 포지션 — 직전 월말 결정 vs 오늘 계산")
 col1, col2 = st.columns(2)
 
