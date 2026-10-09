@@ -34,6 +34,10 @@ class Params:
     p3_ma: int = 200              # P3: IEF 이동평균 일수
     p4_target: float = 0.32       # P4: 목표 변동성(레버리지 = target / SPY 20일 변동성)
     p4_floor: float = 1.30        # P4: 레버리지 하한(공포 신호 시)
+    recession: str = "xlp_ief"    # 침체 국면 기본 보유: "xlp_ief"(XLP 50 + IEF 50) / "ief"(IEF 100)
+    p1_scope: str = "all"         # P1 적용 범위: "all" / "equity"(침체 국면 — 채권 보유 — 에서는 끈다)
+    slowdown_lev: str = "ief_only"  # 침체 국면 레버리지(2026-10-09 확정: ief_only): "all"(그대로) / "shield1x"(단기채 달 1배) /
+                                  #   "ief_only"(늘린 몫은 IEF 에만 + 단기채 달 1배) / "cap1x"(침체 국면 항상 1배 이하)
     extra: dict = field(default_factory=dict, compare=False)
 
 
@@ -44,9 +48,9 @@ def target_weights(row, p2: int, p3: int, prm: Params, ief_ma: float) -> dict:
         return {"XLK": 1.0}
     if row["inflation_on"]:
         return {"DBC": 0.5, "XLE": 0.5} if p2 else {"XLU": 1.0}
-    if p3:
-        return {"XLP": 0.5, "IEF": 0.5} if row["ief"] > ief_ma else {"XLP": 0.5, "SHY": 0.5}
-    return {"XLP": 0.5, "IEF": 0.5}
+    if p3 and row["ief"] <= ief_ma:
+        return {"SHY": 1.0}       # P3: 침체 + 국채 하락 추세 → 단기채 100% (2026-10-09, 종전 XLP 50 + SHY 50)
+    return {"IEF": 1.0} if prm.recession == "ief" else {"XLP": 0.5, "IEF": 0.5}
 
 
 def leverage(past: list, p1: int, p4: int, prm: Params) -> tuple[float, bool]:
@@ -58,12 +62,27 @@ def leverage(past: list, p1: int, p4: int, prm: Params) -> tuple[float, bool]:
     lagged = (past[3]["fng"] < 15) or (past[4]["fng"] < 15)
     if not (direct or (lagged and r0["growth_on"])):
         return 1.0, False
-    if p1 and ((r0["baa10y"] > prm.p1_baa) or (r0["vix"] > prm.p1_vix)):
+    recession = not r0["growth_on"] and not r0["inflation_on"]
+    p1_on = p1 and not (prm.p1_scope == "equity" and recession)
+    if p1_on and ((r0["baa10y"] > prm.p1_baa) or (r0["vix"] > prm.p1_vix)):
         return 1.0, True
     if p4:
         vol = max(0.12, float(r0["vol_20_spy"]))
         return float(np.clip(prm.p4_target / vol, prm.p4_floor, 2.0)), False
     return 2.0, False
+
+
+def slowdown_target(row, w: dict, lev: float, prm: Params) -> tuple[float, dict]:
+    """침체 국면 레버리지 규칙(2026-10-09 전문가 검토 후보). (레버리지, 자산별 목표 비중)."""
+    if not row["growth_on"] and not row["inflation_on"] and lev > 1:
+        mode = prm.slowdown_lev
+        if mode == "cap1x" or (mode in ("shield1x", "ief_only") and "SHY" in w):
+            lev = 1.0
+        elif mode == "ief_only" and "IEF" in w:
+            target = dict(w)
+            target["IEF"] = w["IEF"] + (lev - 1.0)            # 빌린 몫은 IEF 에만
+            return lev, target
+    return lev, {k: v * lev for k, v in w.items()}
 
 
 def simulate(sig, prices, rf_annual, p1, p2, p3, p4, prm: Params = Params(), cost_bp: float = COST_BP,
@@ -82,7 +101,7 @@ def simulate(sig, prices, rf_annual, p1, p2, p3, p4, prm: Params = Params(), cos
         w = target_weights(past[0], p2, p3, prm, ief_ma.loc[d0])
         lev, trig = leverage(past, p1, p4, prm)
         p1_months += trig
-        target = {k: v * lev for k, v in w.items()}
+        lev, target = slowdown_target(past[0], w, lev, prm)
         to = sum(abs(target.get(k, 0.0) - held.get(k, 0.0)) for k in set(target) | set(held))
         turnovers.append(to)
         equity *= (1 - to * cost_bp / 1e4)                     # 월말 리밸런싱 비용

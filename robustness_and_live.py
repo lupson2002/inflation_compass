@@ -28,7 +28,8 @@ def row(r: dict) -> str:
 def main() -> int:
     prices, t5yie, vix, baa10y, dtb3 = load_master_data()
     lines = ["# 16개 조합 후속 점검 — 실거래 시점 · 임계값 견고성 (2026-10-08)", "",
-             "모두 월별 모델(월말 종가 체결·월중 보유), 차입·현금 = DTB3(+50bp 차입), 거래비용 = 월말 매매 명목 × 30bp.", "",
+             "모두 월별 모델(월말 종가 체결·월중 보유), 차입·현금 = DTB3(+50bp 차입), 거래비용 = 월말 매매 명목 × 30bp.",
+             "침체 국면 = XLP 50 + IEF 50(1배), 공포 2배 때 늘린 몫은 IEF 에만, IEF < 200일선이면 SHY 100%·1배 (2026-10-09 확정).", "",
              "## ① 실거래 시점 — FRED 지표(T5YIE·BAA10Y) 지연", "",
              "| 신호 시점 | 모델 | CAGR | MDD | Calmar | Sharpe | 2008 MDD | 2022 수익 |", "|---|---|---|---|---|---|---|---|"]
     variants = {"FRED 0일(연구)": dict(fred_lag=0), "FRED 1일(실거래)": dict(fred_lag=1), "FRED 2일": dict(fred_lag=2)}
