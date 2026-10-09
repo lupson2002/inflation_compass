@@ -129,6 +129,8 @@ def simulate(sig, prices, rf_annual, p1, p2, p3, p4, prm: Params = Params(), cos
 
     def window(a, b):
         sub = eq.loc[a:b]
+        if sub.empty:                      # 시작일이 구간 뒤(예: CNN 2011~ 백테스트)
+            return float("nan"), float("nan")
         base = eq.loc[:pd.Timestamp(a) - pd.Timedelta(days=1)]
         start_val = base.iloc[-1] if len(base) else 1.0
         path = pd.concat([pd.Series([start_val]), sub])

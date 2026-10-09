@@ -23,9 +23,11 @@ st.markdown(
 @st.cache_data(ttl=6 * 3600, show_spinner="최신 시장 데이터 갱신 중…")
 def refresh_db() -> str:
     """6시간마다 한 번 가격·T5YIE 를 받아 DB 를 갱신한다(모든 페이지가 같은 DB 를 읽는다)."""
+    import backtest
     import fetch_data
     try:
         fetch_data.main()
+        backtest.refresh_if_new_month()
         return ""
     except Exception as e:
         return f"데이터 갱신 실패 — 기존 DB 값으로 표시합니다: {e}"

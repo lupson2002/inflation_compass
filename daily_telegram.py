@@ -107,6 +107,7 @@ def refresh_data():
 
 def main():
     refresh_data()
+    backtest.refresh_if_new_month()
     prev_d, prev_e, prev_regime, prev_weights, cur_regime, cur_weights, cur_date = current_position()
     details = signal_details()
     cagr, mdd, start, end = long_term_stats()

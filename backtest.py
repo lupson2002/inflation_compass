@@ -329,5 +329,22 @@ def main():
     )
 
 
+
+def refresh_if_new_month():
+    """새 월말 데이터가 들어오면 main() 을 다시 돌려 DB 성과 표를 갱신한다(월 1회, 텔레그램·대시보드 공용)."""
+    try:
+        prices, _ = load_data()
+        idx = prices.index
+        last_month_end = idx[idx.to_period("M") < idx[-1].to_period("M")].max()   # 직전 완료 월의 마지막 거래일
+        conn = sqlite3.connect(DB_PATH)
+        done = conn.execute("SELECT max(date) FROM backtest_equity").fetchone()[0]
+        conn.close()
+        if done is None or pd.Timestamp(done) < last_month_end:
+            print(f"[backtest] 성과 표 갱신 ({done} → {last_month_end.date()} 월말 반영)")
+            main()
+    except Exception as e:
+        print(f"[backtest] 갱신 실패 — 기존 성과 표 사용: {e}")
+
+
 if __name__ == "__main__":
     main()
