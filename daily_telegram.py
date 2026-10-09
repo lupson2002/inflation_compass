@@ -12,6 +12,7 @@ import requests
 from dotenv import load_dotenv
 
 import backtest
+import fetch_data
 import fng_engine
 import pension
 import yfinance as yf
@@ -95,7 +96,16 @@ def weights_str(weights):
     return " + ".join(f"{t} ({TICKER_KR.get(t, t)}) {w * 100:.0f}%" for t, w in weights.items())
 
 
+def refresh_data():
+    """가격·T5YIE 를 받아 DB 를 갱신한다(2026-10-09: 그동안 갱신 경로가 없어 DB 가 08-07 에 멈춰 있었다)."""
+    try:
+        fetch_data.main()
+    except Exception as e:
+        print(f"[refresh] 데이터 갱신 실패 — DB 기존 값으로 계산: {e}")
+
+
 def main():
+    refresh_data()
     prev_d, prev_e, prev_regime, prev_weights, cur_regime, cur_weights, cur_date = current_position()
     details = signal_details()
     cagr, mdd, start, end = long_term_stats()

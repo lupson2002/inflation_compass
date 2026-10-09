@@ -20,6 +20,21 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+@st.cache_data(ttl=6 * 3600, show_spinner="최신 시장 데이터 갱신 중…")
+def refresh_db() -> str:
+    """6시간마다 한 번 가격·T5YIE 를 받아 DB 를 갱신한다(모든 페이지가 같은 DB 를 읽는다)."""
+    import fetch_data
+    try:
+        fetch_data.main()
+        return ""
+    except Exception as e:
+        return f"데이터 갱신 실패 — 기존 DB 값으로 표시합니다: {e}"
+
+
+_refresh_err = refresh_db()
+if _refresh_err:
+    st.warning(_refresh_err)
+
 pages = [
     st.Page("views/fng_model.py", title="Fear & Greed · Model C-1 Ultra", default=True),
     st.Page("views/position.py", title="Inflation Compass · 현재 포지션"),
