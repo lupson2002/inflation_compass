@@ -32,17 +32,17 @@ c1, c2, c3, c4 = st.columns(4)
 with c1:
     st.metric("현재 F&G 점수", f"{pos['current_fng']:.1f}점", pos["current_rating_kr"])
 with c2:
-    st.metric("권장 노출 배수", f"{pos['exposure']}x", "Model C-1 Ultra")
+    st.metric("권장 노출 배수", f"{pos['exposure']:.1f}x", pos["fng_source"])
 with c3:
-    st.metric("장기 CAGR (2003~26)", "29.07%", "+5.96%p vs 기준 IC")
+    st.metric("확정 전략 CAGR (실거래 조건)", "24.4%", "연구 조건 26.7% · MDD −24.5%")
 with c4:
-    st.metric("23.4년 누적 자산", "344.8배", "기준 IC 116.8배")
+    st.metric("22.9년 누적 자산 (연구 조건)", "226.3배", "2008 낙폭 −18.1%")
 
 st.divider()
 
 # 2. Real-time Action Guide
 st.markdown("### ⚡ 오늘 시점 운용 가이드")
-st.info(f"**💡 판단 근거:** {pos['action_reason']}  \n**🎯 최종 목표 포트폴리오:** `{fng_engine.get_base_dict(pos)}` (비중: `{pos['final_weights']}`)")
+st.info(f"**💡 판단 근거:** {pos['action_reason']}  \n**🎯 최종 목표 포트폴리오:** 기본 `{pos['base_weights']}` → 최종 `{pos['final_weights']}`")
 
 col_left, col_right = st.columns([1.5, 1])
 
@@ -88,6 +88,11 @@ perf_data = [
     {"전략": "👑 Model C-1 Ultra (t-2~t-4 완성형)", "CAGR": "29.07%", "23.4년 누적": "344.8배", "Sharpe": 1.202, "MDD": "-25.75%", "Calmar": 1.129, "2020s CAGR": "44.09%", "p-value": "0.0007"},
 ]
 st.dataframe(pd.DataFrame(perf_data), hide_index=True, use_container_width=True)
+st.caption(
+    "⚠️ 위 표는 종전 비용 모델(차입 이자 = SHY 가격 수익률, 거래비용 없음)로 과대평가된 수치다. "
+    "정정 모델(DTB3 차입, 월말 30bp) 기준 확정 전략(침체 국면 1배 50/50 · 2배 늘린 몫은 IEF · IEF < 200일선이면 SHY): "
+    "연구 조건 CAGR 26.72% / MDD −24.47%, 실거래 조건(전일 FRED) 24.40% / −24.47% — matrix_16_combinations_evaluation_report.md"
+)
 
 st.markdown(
     """

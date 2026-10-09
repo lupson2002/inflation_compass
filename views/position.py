@@ -52,7 +52,6 @@ st.markdown(
 
 prices, t5yie = backtest.load_data()
 signals, _ = backtest.compute_signals(prices, t5yie)
-positions = backtest.build_positions(signals)
 details = backtest.compute_signal_details(prices, t5yie)
 
 # F&G Engine Data
@@ -62,15 +61,17 @@ df_hy["date"] = pd.to_datetime(df_hy["observation_date"])
 hy_spread = df_hy.set_index("date")["BAA10Y"].reindex(prices.index).ffill()
 fng_pos = fng_engine.calculate_model_c1_ultra_position(prices, t5yie, vix, hy_spread)
 
-prev_d, prev_e, prev_regime, prev_weights = positions[-1]
 last_signal = signals.iloc[-1]
-cur_regime = (bool(last_signal["growth_on"]), bool(last_signal["inflation_on"]))
-cur_weights = backtest.REGIME_POSITIONS[cur_regime]
+prev = fng_pos["prev_decision"]                       # 직전 월말 확정 전략 결정(레버리지 포함)
+prev_d, prev_regime, prev_weights = prev["date"], (prev["growth_on"], prev["inflation_on"]), prev["final_weights"]
+cur_regime = (fng_pos["growth_on"], fng_pos["inflation_on"])
+cur_weights = fng_pos["final_weights"]
 
 st.title("현재 포지션 및 심리 레버리지 오버레이")
 
 # 1. Fear & Greed Model C-1 Ultra Live Banner
-st.markdown("### 🧠 CNN Fear & Greed x Model C-1 Ultra 실시간 포지션")
+st.markdown("### 🧠 확정 전략 실시간 포지션 (Inflation Compass × CNN Fear & Greed)")
+st.caption(f"공포·탐욕 출처: {fng_pos['fng_source']} · 가격·T5YIE 데이터 기준일 {prices.index[-1].date()}")
 fcol1, fcol2, fcol3 = st.columns([1.2, 1.8, 1.5])
 
 with fcol1:
@@ -81,7 +82,7 @@ with fcol1:
     )
 
 with fcol2:
-    exp_text = "⚡ 2.0배 공격 레버리지 (200%)" if fng_pos["exposure"] > 1.0 else ("🛡️ 0.5배 위험축소 (현금 50%)" if fng_pos["exposure"] < 1.0 else "⚖️ 1.0배 정규 비중 (100%)")
+    exp_text = "⚡ 2.0배 레버리지 (200%)" if fng_pos["exposure"] > 1.0 else ("🛡️ 0.5배 위험축소 (단기채 50%)" if fng_pos["exposure"] < 1.0 else "⚖️ 1.0배 정규 비중 (100%)")
     st.markdown(f"**권장 노출 배수:** `{exp_text}`")
     st.markdown(f"**최종 목표 비중:** **{weights_str(fng_pos['final_weights'])}**")
     st.caption(f"💡 판단 근거: {fng_pos['action_reason']}")
@@ -98,7 +99,7 @@ with fcol3:
 st.divider()
 
 # 2. Original Baseline IC Regime Position Cards
-st.markdown("### 🧭 Inflation Compass 4국면 기본 로테이션")
+st.markdown("### 🧭 확정 전략 포지션 — 직전 월말 결정 vs 오늘 계산")
 col1, col2 = st.columns(2)
 
 with col1:
@@ -108,7 +109,7 @@ with col1:
         <div class="ic-pos-title">📅 이전 월말 결정 ({prev_d.date()})</div>
         <div class="ic-pos-regime">{regime_label(prev_regime)}</div>
         <div class="ic-pos-asset">{weights_str(prev_weights)}</div>
-        <div class="ic-pos-note">보유기간 ~ {prev_e.date()}</div>
+        <div class="ic-pos-note">노출 {prev['exposure']:.1f}배 · {prev['reason']}</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -121,7 +122,7 @@ with col2:
         <div class="ic-pos-title">🔄 오늘 시점 계산 ({last_signal.name.date()})</div>
         <div class="ic-pos-regime">{regime_label(cur_regime)}</div>
         <div class="ic-pos-asset">{weights_str(cur_weights)}</div>
-        <div class="ic-pos-note">최신 데이터 기준 실시간 신호</div>
+        <div class="ic-pos-note">노출 {fng_pos['exposure']:.1f}배 · 월말 종가 전 이 비중으로 리밸런싱</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -129,7 +130,7 @@ with col2:
 
 changed = prev_weights != cur_weights
 st.info(
-    "⚠️ 포지션이 변경됩니다 — 다음 월말 리밸런싱에 반영됩니다." if changed
+    "⚠️ 오늘 기준으로는 포지션이 바뀝니다 — 월말 종가 전 리밸런싱에 반영합니다(월중엔 보유 유지)." if changed
     else "현재 포지션과 오늘 시점 신호가 동일합니다."
 )
 

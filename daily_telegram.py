@@ -4,6 +4,7 @@
 현재 보유 포지션을 알려주고, 장기 CAGR/MDD를 함께 표시한다.
 """
 
+import html
 import os
 import sqlite3
 from pathlib import Path
@@ -119,6 +120,7 @@ def main():
     hy_spread = df_hy.set_index("date")["BAA10Y"].reindex(prices.index).ffill()
     
     fng_pos = fng_engine.calculate_model_c1_ultra_position(prices, t5yie, vix, hy_spread)
+    prev = fng_pos["prev_decision"]
 
     def regime_str(regime):
         return f"성장 {'상승' if regime[0] else '하락'} · 인플레이션 {'상승' if regime[1] else '하락'}"
@@ -141,21 +143,22 @@ def main():
         "🧭 <b>Inflation Compass · 일간 리포트</b>",
         "",
         f"🔄 <b>오늘 시점 계산</b> ({cur_date.date()})",
-        f"매크로: <b>{regime_str(cur_regime)}</b>",
-        f"기본 섹터: <b>{weights_str(cur_weights)}</b>",
+        f"매크로: <b>{regime_str((fng_pos['growth_on'], fng_pos['inflation_on']))}</b>",
+        f"기본 비중: <b>{weights_str(fng_pos['base_weights'])}</b>"
+        + (" (채권방어: IEF &lt; 200일선)" if fng_pos["bond_shield"] else ""),
         "",
-        "🧠 <b>CNN Fear & Greed x Model C-1 Ultra</b>",
-        f"현재 심리: <b>{fng_pos['current_fng']:.1f}점</b> ({fng_pos['current_rating_kr']} {fng_pos['current_emoji']})",
+        "🧠 <b>확정 전략 × CNN Fear &amp; Greed</b>",
+        f"현재 심리: <b>{fng_pos['current_fng']:.1f}점</b> ({fng_pos['current_rating_kr']} {fng_pos['current_emoji']}) · 출처 {fng_pos['fng_source']}",
         f"권장 포지션: {exp_badge}",
         f"최종 비중: <b>{weights_str(fng_pos['final_weights'])}</b>",
-        f"근거: <i>{fng_pos['action_reason']}</i>",
+        f"근거: <i>{html.escape(fng_pos['action_reason'])}</i>",
         f"공포 룩백 메모리: t0({fng_pos['t0_fng']:.1f}) · t-1({fng_pos['t1_fng']:.1f}) · t-2({fng_pos['t2_fng']:.1f}) · t-3({fng_pos['t3_fng']:.1f}) · t-4({fng_pos['t4_fng']:.1f})",
         "",
-        f"📅 <b>이전 월말 결정 ({prev_d.date()} ~ {prev_e.date()})</b>",
-        f"{regime_str(prev_regime)} → <b>{weights_str(prev_weights)}</b>",
+        f"📅 <b>직전 월말 결정 ({prev['date'].date()}) — 현재 보유</b>",
+        f"{regime_str((prev['growth_on'], prev['inflation_on']))} → <b>{weights_str(prev['final_weights'])}</b> ({prev['exposure']:.1f}배)",
         "",
         f"🎯 <b>인플레이션 판정 ({infl_tag})</b>",
-        f"레벨: T5YIE {details['t5yie_now']:.2f}% {'> 2.0%' if details['level_on'] else '≤ 2.0%'} {lv}",
+        f"레벨: T5YIE {details['t5yie_now']:.2f}% {'&gt; 2.0%' if details['level_on'] else '≤ 2.0%'} {lv}",
         f"Breakeven 모멘텀: {details['t5yie_now']:.2f}% vs 60거래일 전 {details['t5yie_60ago']:.2f}% → {be_mom}",
         f"Asset 모멘텀: 기울기 = {details['slope_num']:.4f}/{details['slope_denom']:.0f} = <b>{details['slope_val']:.4f}</b> → {as_mom}",
         "",
@@ -165,7 +168,7 @@ def main():
         "",
         f"📈 <b>전략 성과 비교</b> ({start} ~ {end})",
         f"• 원본 IC: CAGR <b>{cagr * 100:.1f}%</b> · MDD <b>{mdd * 100:.1f}%</b>",
-        f"• <b>Model C-1 Ultra</b>: CAGR <b>29.1%</b> · MDD <b>-25.8%</b> (누적 344.8배)",
+        "• <b>확정 전략</b>: CAGR <b>24.4%</b> · MDD <b>-24.5%</b> (실거래 조건, 30bp·DTB3 차입 반영)",
         "",
         "🏦 <b>연금 운용 (IC 50% + BAA 25% + V8 25%)</b>",
         f"IC(50%) {pension.TICKER_KR.get(pos['ic_asset'], pos['ic_asset'])} · "
