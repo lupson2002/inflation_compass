@@ -45,13 +45,15 @@ class Params:
     infl_cell: str = "xlu"        # 인플레만 칸: "xlu"(현행) / "mom136"·"mom63"·"mom126"·"mom252"(GLD·XLU·XLE 중 모멘텀 1위)
                                   #   / "mom136abs"(1위 점수 < 0 이면 BIL) — infl_cell_momentum_prereg.md
     infl_candidates: tuple = ("GLD", "XLU", "XLE")   # 모멘텀 후보(시험 2: + XLB)
+    reflation_cell: str = "xle"   # 성장+인플레 칸: "xle"(현행) / "mom136"·"mom63"·"mom126"·"mom252"·"mom136abs" — reflation_cell_prereg.md
+    reflation_candidates: tuple = ("XLE",)
     extra: dict = field(default_factory=dict, compare=False)
 
 
 def regime_weights(row, p2: int, p3: int, prm: Params, ief_ma: float) -> dict:
     """국면 칸 비중(상시 보험 전)."""
     if row["growth_on"] and row["inflation_on"]:
-        return {"XLE": 1.0}
+        return {reflation_asset(row, prm): 1.0}
     if row["growth_on"]:
         return {"XLK": 1.0}
     if row["inflation_on"]:
@@ -62,6 +64,18 @@ def regime_weights(row, p2: int, p3: int, prm: Params, ief_ma: float) -> dict:
 
 
 INFL_CANDIDATES = ("GLD", "XLU", "XLE")
+
+
+def _mom_pick(row, mode: str, cands: tuple) -> str:
+    key = mode.replace("abs", "")
+    score = {t: float(row[f"{key}_{t}"]) for t in cands}
+    best = max(score, key=score.get)
+    return "BIL" if mode.endswith("abs") and score[best] < 0 else best
+
+
+def reflation_asset(row, prm: Params) -> str:
+    """성장+인플레 칸 보유 자산 — 현행 XLE, 또는 후보 중 모멘텀 1위."""
+    return "XLE" if prm.reflation_cell == "xle" else _mom_pick(row, prm.reflation_cell, prm.reflation_candidates)
 
 
 def infl_cell_asset(row, prm: Params) -> str:
@@ -113,7 +127,10 @@ def leverage(past: list, p1: int, p4: int, prm: Params) -> tuple[float, bool]:
 def sector_below_trend(row, prm: Params | None = None) -> bool:
     """주식·인플레만 칸이고 보유 자산이 자기 200일선 아래인가(침체 칸 — IEF 2배 — 는 해당 없음)."""
     if row["growth_on"] and row["inflation_on"]:
-        key = "xle_up"
+        asset = reflation_asset(row, prm or Params())
+        if asset == "BIL":
+            return True
+        key = f"{asset.lower()}_up"
     elif row["growth_on"]:
         key = "xlk_up"
     elif row["inflation_on"]:
