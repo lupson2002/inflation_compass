@@ -42,6 +42,8 @@ class Params:
     sleeve_gld: float = 0.10      # 상시 보험(2026-10-10 6인 검토 V3): 국면과 무관하게 금 10% + BIL 5%, 전략 칸은 85%
     sleeve_bil: float = 0.05      #   몰수·폐장·가격고정·금융억압은 신호로 못 잡으므로 미리 들고 있어야 한다. 0/0 이면 종전 전략
     lev_sector_trend: bool = True  # 주식 칸(XLE·XLK·XLU) 2배는 그 섹터가 자기 200일선 위일 때만(V4′, 2000년형 붕괴 초입 차단)
+    infl_cell: str = "xlu"        # 인플레만 칸: "xlu"(현행) / "mom136"·"mom63"·"mom126"·"mom252"(GLD·XLU·XLE 중 모멘텀 1위)
+                                  #   / "mom136abs"(1위 점수 < 0 이면 BIL) — infl_cell_momentum_prereg.md
     extra: dict = field(default_factory=dict, compare=False)
 
 
@@ -52,10 +54,23 @@ def regime_weights(row, p2: int, p3: int, prm: Params, ief_ma: float) -> dict:
     if row["growth_on"]:
         return {"XLK": 1.0}
     if row["inflation_on"]:
-        return {"DBC": 0.5, "XLE": 0.5} if p2 else {"XLU": 1.0}
+        return {"DBC": 0.5, "XLE": 0.5} if p2 else {infl_cell_asset(row, prm): 1.0}
     if p3 and row["ief"] <= ief_ma:
         return {"SHY": 1.0}       # P3: 침체 + 국채 하락 추세 → 단기채 100% (2026-10-09, 종전 XLP 50 + SHY 50)
     return {"IEF": 1.0} if prm.recession == "ief" else {"XLP": 0.5, "IEF": 0.5}
+
+
+INFL_CANDIDATES = ("GLD", "XLU", "XLE")
+
+
+def infl_cell_asset(row, prm: Params) -> str:
+    """인플레만 칸 보유 자산 — 현행 XLU, 또는 후보 중 모멘텀 1위."""
+    if prm.infl_cell == "xlu":
+        return "XLU"
+    key = prm.infl_cell.replace("abs", "")
+    score = {t: float(row[f"{key}_{t}"]) for t in INFL_CANDIDATES}
+    best = max(score, key=score.get)
+    return "BIL" if prm.infl_cell.endswith("abs") and score[best] < 0 else best
 
 
 def target_weights(row, p2: int, p3: int, prm: Params, ief_ma: float) -> dict:
@@ -86,7 +101,7 @@ def leverage(past: list, p1: int, p4: int, prm: Params) -> tuple[float, bool]:
     p1_on = p1 and not (prm.p1_scope == "equity" and recession)
     if p1_on and ((r0["baa10y"] > prm.p1_baa) or (r0["vix"] > prm.p1_vix)):
         return 1.0, True
-    if prm.lev_sector_trend and sector_below_trend(r0):
+    if prm.lev_sector_trend and sector_below_trend(r0, prm):
         return 1.0, False
     if p4:
         vol = max(0.12, float(r0["vol_20_spy"]))
@@ -94,14 +109,17 @@ def leverage(past: list, p1: int, p4: int, prm: Params) -> tuple[float, bool]:
     return 2.0, False
 
 
-def sector_below_trend(row) -> bool:
-    """주식 칸이고 그 섹터가 자기 200일선 아래인가(침체 칸 — IEF 2배 — 는 해당 없음)."""
+def sector_below_trend(row, prm: Params | None = None) -> bool:
+    """주식·인플레만 칸이고 보유 자산이 자기 200일선 아래인가(침체 칸 — IEF 2배 — 는 해당 없음)."""
     if row["growth_on"] and row["inflation_on"]:
         key = "xle_up"
     elif row["growth_on"]:
         key = "xlk_up"
     elif row["inflation_on"]:
-        key = "xlu_up"
+        asset = infl_cell_asset(row, prm or Params())
+        if asset == "BIL":
+            return True                      # 현금을 빌려 사지 않는다
+        key = f"{asset.lower()}_up"
     else:
         return False
     return key in row.index and not bool(row[key])
