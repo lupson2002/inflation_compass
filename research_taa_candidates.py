@@ -7,6 +7,7 @@
   VAA4    Keller & Keuning (2017) Vigilant Asset Allocation G4 공격형 — 13612W, 공격 SPY·EFA·EEM·AGG 모두 > 0 이면
           공격 1등 100%, 아니면 방어 LQD·IEF·SHY 1등 100%.
   ADM     Accelerating Dual Momentum (EngineeredPortfolio) — SPY·SCZ 의 1·3·6개월 수익 평균, 큰 쪽이 > 0 이면 그것, 아니면 TLT.
+  ADM_SHY ADM + 방어 시 TLT 가 200일선 이하면 SHY.
   LFLR2   Gayed & Bilello (2016) Leverage for the Long Run — SPY > 200일선이면 2배 SPY(일간 2배 − 차입 DTB3+0.5%),
           아니면 T-bill. 일별 신호, **다음 날 종가 체결**, 전환 1회당 2배 명목 × 30bp.
 IC = run_16_matrix_experiments 확정 전략(레버리지) · 연금형(비레버리지) 월 수익률(전일 FRED, 실거래 조건).
@@ -80,13 +81,20 @@ def vaa4_fn(px):
     return f
 
 
-def adm_fn(px):
+def adm_fn(px, shield: str | None = None):
+    """shield="SHY"/"BIL": 방어로 갈 때 TLT 가 200일선 이하면 TLT 대신 그 자산 (2026-10-10, IC 채권방어와 같은 규칙)."""
+    tlt_ma = px["TLT"].rolling(200).mean()
+
     def f(d):
         s = sum(_mret(px, d, m, ["SPY", "SCZ"]) for m in (1, 3, 6)) / 3
         if s.isna().any():
             return None
         best = s.idxmax()
-        return {best if s[best] > 0 else "TLT": 1.0}
+        if s[best] > 0:
+            return {best: 1.0}
+        if shield and px.loc[d, "TLT"] <= tlt_ma.loc[d]:
+            return {shield: 1.0}
+        return {"TLT": 1.0}
     return f
 
 
@@ -113,6 +121,7 @@ def main() -> int:
     S = {"HAA": backtest(px, haa_fn(px), rf, "2004-01-01"),
          "VAA4": backtest(px, vaa4_fn(px), rf, "2004-01-01"),
          "ADM": backtest(px, adm_fn(px), rf, "2008-01-01"),
+         "ADM_SHY": backtest(px, adm_fn(px, "SHY"), rf, "2008-01-01"),
          "LFLR2": lflr2(px, rf)}
     last = pd.Timestamp.today().to_period("M").to_timestamp("M") - pd.offsets.MonthEnd(1)
     print("■ 단독 (자체 전 기간, 월말 기준 MDD)")
@@ -131,7 +140,7 @@ def main() -> int:
     for base in ("IC확정", "IC연금"):
         d = df[df[base] < 0]
         print(f"{base} 손실 달 상관:", d.corr()[base].drop(["IC확정", "IC연금"]).round(2).to_dict())
-    for base, cands in (("IC확정", ["LFLR2", "HAA", "VAA4", "ADM"]), ("IC연금", ["HAA", "VAA4", "ADM"])):
+    for base, cands in (("IC확정", ["LFLR2", "HAA", "VAA4", "ADM", "ADM_SHY"]), ("IC연금", ["HAA", "VAA4", "ADM", "ADM_SHY"])):
         print(f"\n■ {base} 혼합 (월말 재조정) — 전체 | 전반 ~2016 | 후반 2017~")
         for k in cands:
             for w in (0.7, 0.5):
