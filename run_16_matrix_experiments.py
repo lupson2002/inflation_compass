@@ -33,7 +33,8 @@ class Params:
     p3_ma: int = 200              # P3: IEF 이동평균 일수
     p4_target: float = 0.32       # P4: 목표 변동성(레버리지 = target / SPY 20일 변동성)
     p4_floor: float = 1.30        # P4: 레버리지 하한(공포 신호 시)
-    recession: str = "xlp_ief"    # 침체 국면 기본 보유: "xlp_ief"(XLP 50 + IEF 50) / "ief"(IEF 100)
+    recession: str = "ief"        # 침체 국면 기본 보유: "ief"(IEF 100, 2026-10-10 확정 — GEM 의 '위험 신호 때 채권 100%' 결합,
+                                  #   ic_gem_hybrid_prereg.md) / "xlp_ief"(XLP 50 + IEF 50, 종전)
     p1_scope: str = "all"         # P1 적용 범위: "all" / "equity"(침체 국면 — 채권 보유 — 에서는 끈다)
     slowdown_lev: str = "ief_only"  # 침체 국면 레버리지(2026-10-09 확정: ief_only): "all"(그대로) / "shield1x"(단기채 달 1배) /
                                   #   "ief_only"(늘린 몫은 IEF 에만 + 단기채 달 1배) / "cap1x"(침체 국면 항상 1배 이하)

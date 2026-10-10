@@ -37,7 +37,7 @@ with c2:
 with c3:
     st.metric("권장 노출 배수", f"{pos['exposure']:.1f}x", "지수 < 15 → 2x · > 85 → 0.5x")
 with c4:
-    st.metric("확정 전략 CAGR (실거래 조건)", "19.5%", "MDD −20.2% · 2008 −14.9%")
+    st.metric("확정 전략 CAGR (실거래 조건)", "19.5%", "MDD −20.2% · 2008 −11.0%")
 
 st.divider()
 

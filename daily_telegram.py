@@ -185,7 +185,7 @@ def main():
         + (" · 채권방어" if pic["bond_shield"] else ""),
         pent_line,
         f"합계: <b>{pension_mix.weights_str(pmix['weights'])}</b>",
-        "백테스트 2008~: 연 15.3% · MDD −14.1% (월말, 상시 보험 포함)",
+        "백테스트 2008~: 연 15.3% · MDD −13.0% (월말, 상시 보험·침체 IEF100 포함)",
     ]
     text = "\n".join(lines)
     send_message(text)

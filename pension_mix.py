@@ -6,7 +6,7 @@
   Streamlit Cloud 처럼 그 경로가 없으면 data/pentarch_pension_target.json(마지막 로컬 사본)을 읽는다.
 
 백테스트(2008-02~2026-09, 월말 재조정, IC·BAA 30bp / PENTARCH 15bp·다음 날 체결):
-  IC 연금형 단독 15.0% / MDD −14.7%  ·  PENTARCH 비레버리지 15.2% / −20.1%  ·  50/50 혼합 15.3% / −14.1%  (2026-10-10 상시 보험 반영;
+  IC 연금형 단독 14.9% / MDD −14.4%  ·  PENTARCH 비레버리지 15.2% / −20.1%  ·  50/50 혼합 15.3% / −13.0%  (2026-10-10 상시 보험·침체 IEF100 반영;
   보험 전 10-09판: IC 16.3% / −17.7%, 혼합 16.0% / −15.6%)
 """
 from __future__ import annotations
@@ -22,8 +22,8 @@ PENTARCH_JSON = Path(os.getenv("PENTARCH_PENSION_JSON", "/home/mikey/pentarch/ou
 LOCAL_COPY = BASE_DIR / "data" / "pentarch_pension_target.json"
 IC_WEIGHT, PENT_WEIGHT = 0.5, 0.5
 STALE_DAYS = 5
-BACKTEST = {"기간": "2008-02 ~ 2026-09 (월말)", "CAGR": 0.153, "MDD": -0.141,
-            "IC 단독": (0.150, -0.147), "PENTARCH 단독": (0.152, -0.201)}
+BACKTEST = {"기간": "2008-02 ~ 2026-09 (월말)", "CAGR": 0.153, "MDD": -0.130,
+            "IC 단독": (0.149, -0.144), "PENTARCH 단독": (0.152, -0.201)}
 
 
 def load_pentarch_target() -> dict | None:

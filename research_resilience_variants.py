@@ -89,7 +89,7 @@ def run(sig, prices, dtb3, flags, pension):
     r16.target_weights, r16.leverage = w, l
     try:
         # 2026-10-10 이후 엔진 기본값이 V3+V4′ 를 포함하므로, 이 연구의 기준(V0)은 종전 확정 전략으로 고정한다
-        return r16.simulate(sig, prices, dtb3, 0, 0, 1, 0, r16.Params(sleeve_gld=0.0, sleeve_bil=0.0, lev_sector_trend=False))
+        return r16.simulate(sig, prices, dtb3, 0, 0, 1, 0, r16.Params(sleeve_gld=0.0, sleeve_bil=0.0, lev_sector_trend=False, recession="xlp_ief"))
     finally:
         r16.target_weights, r16.leverage = ORIG
 

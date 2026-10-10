@@ -120,8 +120,9 @@ def confirmed_weights(growth_on: bool, inflation_on: bool, ief_below_ma: bool, e
     """확정 전략(2026-10-10, run_16_matrix_experiments 기본 Params) 목표 비중.
 
     - 국면 칸 85% + 상시 보험 15%(금 GLD 10 · 초단기채 BIL 5). 배수는 이 비중 전체에 곱한다.
-    - 침체 국면(성장·인플레 모두 꺼짐): XLP 50 + IEF 50(× 0.85). IEF < 200일선이면 SHY 100%(× 0.85) 이고 1배로 제한.
-    - 침체 국면 2배: 늘린 몫은 IEF 에만 → XLP 42.5 + IEF 142.5 + GLD 10 + BIL 5.
+    - 침체 국면(성장·인플레 모두 꺼짐): IEF 100(× 0.85) — 2026-10-10 GEM 결합(종전 XLP 50 + IEF 50).
+      IEF < 200일선이면 SHY 100%(× 0.85) 이고 1배로 제한.
+    - 침체 국면 2배: 늘린 몫은 IEF 에만 → IEF 185 + GLD 10 + BIL 5.
     - 주식 칸(XLE·XLK·XLU) 2배는 그 섹터가 자기 200일선 위일 때만(sector_up), 아니면 1배.
     - 0.5배: 나머지 50% 는 단기채(SHY)로 둔다(백테스트는 T-bill 이자).
     """
@@ -136,7 +137,7 @@ def confirmed_weights(growth_on: bool, inflation_on: bool, ief_below_ma: bool, e
     elif shield:
         regime = {"SHY": 1.0}
     else:
-        regime = {"XLP": 0.5, "IEF": 0.5}
+        regime = {"IEF": 1.0}
     ins = sum(SLEEVE.values())
     base = {k: v * (1 - ins) for k, v in regime.items()}
     for k, v in SLEEVE.items():

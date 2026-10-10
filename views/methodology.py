@@ -58,7 +58,7 @@ with tab_strategy:
           <div class="rowhdr">성장 ↓</div>
           <div class="cell" style="background:#e6e1f3"><div class="ticker">XLU</div><div class="kr">유틸리티</div><div class="label">stagflation</div></div>
           <div class="cell" style="background:linear-gradient(90deg,#fbedd0 50%,#fbe1ea 50%)"><div class="ticker">XLP + IEF</div><div class="kr">필수소비재 + 7-10년 국채</div><div class="label">disinflation</div>
-            <div class="new">확정: IEF &lt; 200일선이면 SHY 100%</div></div>
+            <div class="new">확정: <b>IEF 100%</b> (10-10), IEF &lt; 200일선이면 SHY 100%</div></div>
         </div>
         <p style="margin-top:12px"><b>확정 (2026-10-10):</b> 위 칸은 계좌의 <b>85%</b>. 나머지 15% 는 국면과 무관하게 <b>금 GLD 10% + 초단기채 BIL 5%</b> 상시 보유.</p>
         <p style="margin-top:20px">참고: <a href="https://cssanalytics.wordpress.com/2026/07/27/the-inflation-compass-model/" target="_blank">cssanalytics.wordpress.com</a></p>
@@ -67,12 +67,12 @@ with tab_strategy:
         <p>원조의 4국면 판정과 섹터 배분은 그대로 쓰고, 아래를 더했습니다.</p>
         <table>
         <tr><th>항목</th><th>원조 (저자)</th><th>확정 전략</th></tr>
-        <tr><td>침체 국면 채권방어</td><td>XLP 50 + IEF 50 고정</td>
-            <td class="chg">IEF 가 200일선 아래면 <b>SHY(1-3년 단기채) 100%</b></td></tr>
+        <tr><td>침체 국면</td><td>XLP 50 + IEF 50 고정</td>
+            <td class="chg"><b>IEF 100%</b> (10-10, 듀얼 모멘텀의 '위험 신호 땐 채권 100%') · IEF 가 200일선 아래면 <b>SHY(1-3년 단기채) 100%</b></td></tr>
         <tr><td>레버리지</td><td>없음 (항상 1배)</td>
             <td class="chg">IC 위험선호 지수 월말 값 &lt; 15 → <b>2배</b>, &gt; 85 → <b>0.5배</b>, 그 외 1배</td></tr>
         <tr><td>침체 국면 2배</td><td>—</td>
-            <td class="chg">늘린 1배는 <b>IEF 에만</b> → XLP 42.5 + IEF 142.5 (+ 보험 15). SHY 로 바뀐 달은 1배로 제한</td></tr>
+            <td class="chg">늘린 1배는 <b>IEF 에만</b> → IEF 185 (+ 보험 15). SHY 로 바뀐 달은 1배로 제한</td></tr>
         <tr><td>상시 보험 (10-10)</td><td>없음</td>
             <td class="chg">국면 칸 85% + <b>금 10% + BIL 5%</b> 항상 보유. 배수(2배·0.5배)는 보험까지 포함한 전체에 곱함</td></tr>
         <tr><td>주식 칸 2배 조건 (10-10)</td><td>—</td>
@@ -85,7 +85,7 @@ with tab_strategy:
         <tr><th></th><th>연수익</th><th>최대낙폭</th><th>2008 낙폭</th><th>2022 수익</th></tr>
         <tr><td>원조 (레버리지 없음)</td><td>19.1%</td><td>−24.5%</td><td>−18.8%</td><td>+33.7%</td></tr>
         <tr><td>확정 전략 10-09판 (보험 없음)</td><td>21.4%</td><td>−24.5%</td><td>−16.2%</td><td>+63.7%</td></tr>
-        <tr><td><b>확정 전략 · 실거래 조건 (10-10)</b></td><td><b>19.5%</b></td><td><b>−20.2%</b></td><td><b>−14.9%</b></td><td><b>+51.0%</b></td></tr>
+        <tr><td><b>확정 전략 · 실거래 조건 (10-10)</b></td><td><b>19.5%</b></td><td><b>−20.2%</b></td><td><b>−11.0%</b></td><td><b>+51.0%</b></td></tr>
         </table>
         <p>최대낙폭 −20.2% 는 2011-04~08(미국 신용등급 강등)에 1배 주식 국면에서 나온 것으로, 레버리지·침체 규칙과 무관합니다.
         보험 15% 는 정상기에 연 약 1.9%p 를 내고 그 낙폭을 4.3%p 줄입니다(위험 대비 수익은 오히려 개선).</p>
@@ -126,7 +126,7 @@ with tab_signals:
 
         <h4><span class="chg">[확정]</span> 채권방어 신호</h4>
         <p>침체 국면(성장 하락 · 인플레이션 하락)에서만 봅니다. IEF 종가가 200일 이동평균 이하이면
-        국채가 하락 추세(금리 상승)라 보고 XLP+IEF 대신 SHY 100% 로 피합니다.</p>
+        국채가 하락 추세(금리 상승)라 보고 IEF 대신 SHY 100% 로 피합니다.</p>
         <div class="formula">bond-shield = 침체 국면 AND IEF ≤ IEF 200일 평균  →  SHY 100%, 레버리지 1배 제한</div>
 
         <h4><span class="chg">[확정]</span> IC 위험선호 지수 (레버리지 신호)</h4>
@@ -207,6 +207,12 @@ with tab_why:
         <tr><td><b>당월만 (확정)</b></td><td>20.3% / −22.9%</td><td>19.5% / −24.2%</td></tr>
         <tr><td>당월·2·3~4개월 전 (종전)</td><td>23.7% / −22.9%</td><td>22.6% / <b>−39.5%</b></td></tr>
         </table>
+
+        <h4>침체 칸 IEF 100%: 듀얼 모멘텀과 IC 의 장점 결합 (2026-10-10)</h4>
+        <p>155년(1872~) 검증에서 듀얼 모멘텀(GEM)은 디플레·신용 위기(1929~32, 2008)를 '채권 100%'로 막았고,
+        IC 는 금리 급등(2022)을 '채권 하락 추세면 단기채'로 막았습니다. 둘을 합쳐 침체 칸을 IEF 100% 로 하고 채권방어는 그대로 둡니다.
+        2003~ 실거래: 연수익 19.3% → 19.2%(사실상 같음), 2008 +1.2% → +13.0%, 2020-02~03 −4.4% → −0.7%, 2022 +51.0% 그대로.
+        초장기 대리: 1929~32 −56% → −26%, 최대낙폭 −57.5% → −41.6%. GEM 자체를 섞는 것은 같은 기간 GEM 연 8.4% 라 수익만 줄어 쓰지 않습니다.</p>
 
         <h4>상시 보험 15% (금 10 + BIL 5): 왜 신호가 아니라 '미리' 들고 있나? (2026-10-10)</h4>
         <p>논리·경제사·이론경제·사회·기술사·생존론 6개 관점 검토의 공통 결론: 이 전략의 방어는 <b>천천히 오는 위기</b>

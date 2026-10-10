@@ -224,7 +224,7 @@ st.markdown(
     <div style="font-size:13px;color:#52564d">IC 연금형(50%): {PM.weights_str(pic['final_weights'])} · 노출 {pic['exposure']:.1f}배
     {' · 채권방어' if pic['bond_shield'] else ''}<br/>PENTARCH 비레버리지(50%): {pent_txt}</div>
     <div style="font-size:22px;font-weight:700;color:#bb6b2c;margin-top:8px">{PM.weights_str(pmix['weights'])}</div>
-    <div style="font-size:12px;color:#898781;margin-top:8px">백테스트 2008-02~2026-09 월말: 연 15.3% · MDD −14.1% — 상세는 「연금 운용」 페이지</div>
+    <div style="font-size:12px;color:#898781;margin-top:8px">백테스트 2008-02~2026-09 월말: 연 15.3% · MDD −13.0% — 상세는 「연금 운용」 페이지</div>
     </div>
     """,
     unsafe_allow_html=True,
