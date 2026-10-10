@@ -1,20 +1,20 @@
 {
-  "model": "v18.2-nolev",
-  "generated_at": "2026-10-10T05:03:14",
+  "model": "v18.3-nolev",
+  "generated_at": "2026-10-11T00:28:50",
   "data_asof": "2026-10-09",
   "target": {
-    "GLD": 1.0
+    "GLD": 0.5,
+    "DBC": 0.5
   },
-  "effective_since": "2026-07-01",
+  "effective_since": "2026-04-01",
   "prev_target": {
-    "TLT": 0.5,
-    "GLD": 0.5
+    "GLD": 1.0
   },
   "backtest": {
     "era": "etf",
     "start": "2008-01-02",
     "CAGR": 0.1559,
-    "MDD": -0.2301,
-    "Sharpe": 0.9102
+    "MDD": -0.2307,
+    "Sharpe": 0.9146
   }
 }

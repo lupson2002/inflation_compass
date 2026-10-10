@@ -55,7 +55,7 @@ with c2:
         body = "<div style='font-size:14px;color:#b0442f'>PENTARCH 신호 없음 — pentarch 크론(05:00) 확인</div>"
     else:
         warn = f"<div style='font-size:11px;color:#b0442f'>⚠️ 신호가 {pent['stale_days']}일 지났다</div>" if pent["stale"] else ""
-        body = (f"<div style='font-size:12px;color:#52564d;margin:4px 0 8px'>v18.2 신호 · 레버리지 ETF 제외 · {pent['effective_since']} 부터 · "
+        body = (f"<div style='font-size:12px;color:#52564d;margin:4px 0 8px'>v18.3 신호 · 레버리지 ETF 제외 · {pent['effective_since']} 부터 · "
                 f"데이터 {pent['data_asof']} ({pent['source']})</div>"
                 f"<div style='font-size:18px;font-weight:700;color:#bb6b2c'>{PM.weights_str(pent['target'])}</div>{warn}")
     st.markdown(
@@ -103,7 +103,7 @@ st.plotly_chart(fig, width="stretch")
 st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
 st.caption(
     "IC 연금형·BAA-G4(켈러 원본, ETF) = 월말 종가 전 체결·30bp, PENTARCH = 다음 날 체결·15bp. "
-    "PENTARCH 비레버리지는 pentarch 의 사전등록 검증을 거친 운용 모델이 아니다(v18.2 신호에서 레버리지 ETF 만 끔). "
+    "PENTARCH 비레버리지는 pentarch 의 사전등록 검증을 거친 운용 모델이 아니다(운용 v18.3 신호에서 레버리지 ETF 만 끔 — v18.3 = v18.2 + 주식·채권 상관 양수면 국채 제외, 2026-10-10). "
     "비중은 같은 기간 231개 조합 비교에서 고른 둥근 값 — 근처 비중과의 차이는 의미가 작다."
 )
 
