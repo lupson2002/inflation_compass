@@ -103,6 +103,7 @@ def get_fng_rating_kr(score):
 
 
 IEF_MA_DAYS = 200          # 채권방어: 침체 국면에서 IEF < 200일선이면 SHY 100%
+SLEEVE = {"GLD": 0.10, "BIL": 0.05}   # 상시 보험(2026-10-10, run_16_matrix_experiments.Params.sleeve_*) — 국면 칸은 85%
 
 
 def fear_exposure(t0: float, growth_on: bool = True) -> tuple[float, str]:
@@ -114,34 +115,44 @@ def fear_exposure(t0: float, growth_on: bool = True) -> tuple[float, str]:
     return 1.0, f"정상 국면 ({INDEX_NAME} {t0:.1f}) ➔ 1.0배"
 
 
-def confirmed_weights(growth_on: bool, inflation_on: bool, ief_below_ma: bool, exposure: float) -> dict:
-    """확정 전략(2026-10-09, run_16_matrix_experiments M02 + slowdown_lev='ief_only') 목표 비중.
+def confirmed_weights(growth_on: bool, inflation_on: bool, ief_below_ma: bool, exposure: float,
+                      sector_up: bool = True) -> dict:
+    """확정 전략(2026-10-10, run_16_matrix_experiments 기본 Params) 목표 비중.
 
-    - 침체 국면(성장·인플레 모두 꺼짐): XLP 50 + IEF 50. IEF < 200일선이면 SHY 100% 이고 레버리지는 1배로 제한.
-    - 침체 국면 2배: 늘린 몫은 IEF 에만 → XLP 50 + IEF 150.
+    - 국면 칸 85% + 상시 보험 15%(금 GLD 10 · 초단기채 BIL 5). 배수는 이 비중 전체에 곱한다.
+    - 침체 국면(성장·인플레 모두 꺼짐): XLP 50 + IEF 50(× 0.85). IEF < 200일선이면 SHY 100%(× 0.85) 이고 1배로 제한.
+    - 침체 국면 2배: 늘린 몫은 IEF 에만 → XLP 42.5 + IEF 142.5 + GLD 10 + BIL 5.
+    - 주식 칸(XLE·XLK·XLU) 2배는 그 섹터가 자기 200일선 위일 때만(sector_up), 아니면 1배.
     - 0.5배: 나머지 50% 는 단기채(SHY)로 둔다(백테스트는 T-bill 이자).
     """
     slowdown = not growth_on and not inflation_on
     shield = slowdown and ief_below_ma
     if growth_on and inflation_on:
-        base = {"XLE": 1.0}
+        regime = {"XLE": 1.0}
     elif growth_on:
-        base = {"XLK": 1.0}
+        regime = {"XLK": 1.0}
     elif inflation_on:
-        base = {"XLU": 1.0}
+        regime = {"XLU": 1.0}
     elif shield:
-        base = {"SHY": 1.0}
+        regime = {"SHY": 1.0}
     else:
-        base = {"XLP": 0.5, "IEF": 0.5}
-    if shield and exposure > 1.0:
-        exposure = 1.0
+        regime = {"XLP": 0.5, "IEF": 0.5}
+    ins = sum(SLEEVE.values())
+    base = {k: v * (1 - ins) for k, v in regime.items()}
+    for k, v in SLEEVE.items():
+        base[k] = base.get(k, 0.0) + v
+    sector_capped = False
+    if exposure > 1.0 and (shield or (not slowdown and not sector_up)):
+        exposure, sector_capped = 1.0, not slowdown
     if slowdown and not shield and exposure > 1.0:
-        final = {"XLP": 0.5, "IEF": 0.5 + (exposure - 1.0)}
+        final = dict(base)
+        final["IEF"] = base["IEF"] + (exposure - 1.0)
     else:
         final = {t: w * exposure for t, w in base.items()}
         if exposure < 1.0:
             final["SHY"] = final.get("SHY", 0.0) + (1.0 - exposure)
-    return {"exposure": exposure, "base_weights": base, "final_weights": final, "bond_shield": shield}
+    return {"exposure": exposure, "base_weights": base, "regime_weights": regime, "final_weights": final,
+            "bond_shield": shield, "sector_capped": sector_capped}
 
 
 def _macro_series(prices, t5yie):
@@ -161,12 +172,27 @@ def _macro_series(prices, t5yie):
     return growth, inflation, ief_below
 
 
-def _decision_at(index_series, growth, inflation, ief_below, d):
-    """d 시점 판단(그 날의 IC 위험선호 지수·국면·IEF 200일선)."""
+def sector_trend(prices) -> pd.DataFrame:
+    """XLE·XLK·XLU 가 자기 200일선 위인가(주식 칸 2배 조건)."""
+    return pd.DataFrame({t: prices[t] > prices[t].rolling(200).mean() for t in ("XLE", "XLK", "XLU")})
+
+
+def regime_sector(growth_on: bool, inflation_on: bool) -> str | None:
+    if growth_on:
+        return "XLE" if inflation_on else "XLK"
+    return "XLU" if inflation_on else None
+
+
+def _decision_at(index_series, growth, inflation, ief_below, d, trend=None):
+    """d 시점 판단(그 날의 IC 위험선호 지수·국면·IEF 200일선·보유 섹터 자기 추세)."""
     t0 = float(index_series.loc[d])
     g, inf, below = bool(growth.loc[d]), bool(inflation.loc[d]), bool(ief_below.loc[d])
+    sec = regime_sector(g, inf)
+    up = True if (trend is None or sec is None) else bool(trend.loc[d, sec])
     exposure, reason = fear_exposure(t0, g)
-    w = confirmed_weights(g, inf, below, exposure)
+    w = confirmed_weights(g, inf, below, exposure, sector_up=up)
+    if w["sector_capped"]:
+        reason += f" · {sec} 가 자기 200일선 아래 ➔ 2배 대신 1배"
     if w["bond_shield"]:
         reason += " · 채권방어(IEF < 200일선) ➔ 단기채 100%" + (", 1배 제한" if exposure > 1 else "")
     elif not g and not inf and exposure > 1:
@@ -180,8 +206,9 @@ def calculate_model_c1_ultra_position(prices, t5yie, vix, hy_spread):
     growth, inflation, ief_below = _macro_series(prices, t5yie)
     me = sorted(index_series.groupby([index_series.index.year, index_series.index.month]).apply(lambda x: x.index[-1]).values)
     me = [pd.Timestamp(d) for d in me]
-    live = _decision_at(index_series, growth, inflation, ief_below, me[-1])
-    prev = _decision_at(index_series, growth, inflation, ief_below, me[-2])
+    trend = sector_trend(prices)
+    live = _decision_at(index_series, growth, inflation, ief_below, me[-1], trend)
+    prev = _decision_at(index_series, growth, inflation, ief_below, me[-2], trend)
 
     cnn_score, cnn_rating, _ = get_cnn_live_fng()
     cnn_hist = load_cnn_archive()

@@ -38,10 +38,14 @@ class Params:
     slowdown_lev: str = "ief_only"  # 침체 국면 레버리지(2026-10-09 확정: ief_only): "all"(그대로) / "shield1x"(단기채 달 1배) /
                                   #   "ief_only"(늘린 몫은 IEF 에만 + 단기채 달 1배) / "cap1x"(침체 국면 항상 1배 이하)
     fear_rule: str = "t0"         # 공포 2배 규칙(2026-10-09 확정: "t0" 당월 공포만) / "ultra"(종전: 당월·2개월·3~4개월 전)
+    sleeve_gld: float = 0.10      # 상시 보험(2026-10-10 6인 검토 V3): 국면과 무관하게 금 10% + BIL 5%, 전략 칸은 85%
+    sleeve_bil: float = 0.05      #   몰수·폐장·가격고정·금융억압은 신호로 못 잡으므로 미리 들고 있어야 한다. 0/0 이면 종전 전략
+    lev_sector_trend: bool = True  # 주식 칸(XLE·XLK·XLU) 2배는 그 섹터가 자기 200일선 위일 때만(V4′, 2000년형 붕괴 초입 차단)
     extra: dict = field(default_factory=dict, compare=False)
 
 
-def target_weights(row, p2: int, p3: int, prm: Params, ief_ma: float) -> dict:
+def regime_weights(row, p2: int, p3: int, prm: Params, ief_ma: float) -> dict:
+    """국면 칸 비중(상시 보험 전)."""
     if row["growth_on"] and row["inflation_on"]:
         return {"XLE": 1.0}
     if row["growth_on"]:
@@ -51,6 +55,18 @@ def target_weights(row, p2: int, p3: int, prm: Params, ief_ma: float) -> dict:
     if p3 and row["ief"] <= ief_ma:
         return {"SHY": 1.0}       # P3: 침체 + 국채 하락 추세 → 단기채 100% (2026-10-09, 종전 XLP 50 + SHY 50)
     return {"IEF": 1.0} if prm.recession == "ief" else {"XLP": 0.5, "IEF": 0.5}
+
+
+def target_weights(row, p2: int, p3: int, prm: Params, ief_ma: float) -> dict:
+    """국면 칸 × (1 − 보험) + 금·BIL 상시 보험. 레버리지·0.5배는 이 비중 전체에 곱해진다."""
+    w = regime_weights(row, p2, p3, prm, ief_ma)
+    ins = prm.sleeve_gld + prm.sleeve_bil
+    if ins <= 0:
+        return w
+    out = {k: v * (1 - ins) for k, v in w.items()}
+    out["GLD"] = out.get("GLD", 0.0) + prm.sleeve_gld
+    out["BIL"] = out.get("BIL", 0.0) + prm.sleeve_bil      # SHY 가 아니라 BIL — SHY 는 침체 칸 '채권방어' 표지다
+    return out
 
 
 def leverage(past: list, p1: int, p4: int, prm: Params) -> tuple[float, bool]:
@@ -69,10 +85,25 @@ def leverage(past: list, p1: int, p4: int, prm: Params) -> tuple[float, bool]:
     p1_on = p1 and not (prm.p1_scope == "equity" and recession)
     if p1_on and ((r0["baa10y"] > prm.p1_baa) or (r0["vix"] > prm.p1_vix)):
         return 1.0, True
+    if prm.lev_sector_trend and sector_below_trend(r0):
+        return 1.0, False
     if p4:
         vol = max(0.12, float(r0["vol_20_spy"]))
         return float(np.clip(prm.p4_target / vol, prm.p4_floor, 2.0)), False
     return 2.0, False
+
+
+def sector_below_trend(row) -> bool:
+    """주식 칸이고 그 섹터가 자기 200일선 아래인가(침체 칸 — IEF 2배 — 는 해당 없음)."""
+    if row["growth_on"] and row["inflation_on"]:
+        key = "xle_up"
+    elif row["growth_on"]:
+        key = "xlk_up"
+    elif row["inflation_on"]:
+        key = "xlu_up"
+    else:
+        return False
+    return key in row.index and not bool(row[key])
 
 
 def slowdown_target(row, w: dict, lev: float, prm: Params) -> tuple[float, dict]:

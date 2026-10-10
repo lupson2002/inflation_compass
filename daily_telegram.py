@@ -33,6 +33,8 @@ TICKER_KR = {
     "XLP": "필수소비재",
     "IEF": "7-10년 국채",
     "SHY": "1-3년 단기채",
+    "GLD": "금",
+    "BIL": "초단기채(현금)",
 }
 
 
@@ -160,7 +162,7 @@ def main():
         f"권장 포지션: {exp_badge}",
         f"최종 비중: <b>{weights_str(fng_pos['final_weights'])}</b>",
         f"근거: <i>{html.escape(fng_pos['action_reason'])}</i>",
-        "규칙: 지수 &lt; 15 → 2배 · &gt; 85 → 0.5배 · 그 외 1배 (월말 판단)",
+        "규칙: 지수 &lt; 15 → 2배(주식 칸은 섹터 200일선 위일 때만) · &gt; 85 → 0.5배 · 그 외 1배 · 상시 보험 금10·BIL5 (월말 판단)",
         "",
         f"📅 <b>직전 월말 결정 ({prev['date'].date()}) — 현재 보유</b>",
         f"{regime_str((prev['growth_on'], prev['inflation_on']))} → <b>{weights_str(prev['final_weights'])}</b> ({prev['exposure']:.1f}배)",
@@ -176,14 +178,14 @@ def main():
         "",
         f"📈 <b>전략 성과 비교</b> ({start} ~ {end})",
         f"• 원본 IC: CAGR <b>{cagr * 100:.1f}%</b> · MDD <b>{mdd * 100:.1f}%</b>",
-        "• <b>확정 전략</b>: CAGR <b>21.4%</b> · MDD <b>-24.5%</b> (실거래 조건, 30bp·DTB3 차입 반영)",
+        "• <b>확정 전략</b>: CAGR <b>19.5%</b> · MDD <b>-20.2%</b> (실거래 조건, 30bp·DTB3 차입, 상시 보험 금10·BIL5 포함)",
         "",
         "🏦 <b>연금 운용 (IC 연금형 50% + PENTARCH 비레버리지 50%)</b>",
         f"IC 연금형(50%): {pension_mix.weights_str(pic['final_weights'])} · 노출 {pic['exposure']:.1f}배"
         + (" · 채권방어" if pic["bond_shield"] else ""),
         pent_line,
         f"합계: <b>{pension_mix.weights_str(pmix['weights'])}</b>",
-        "백테스트 2008~: 연 16.0% · MDD −15.6% (월말)",
+        "백테스트 2008~: 연 15.3% · MDD −14.1% (월말, 상시 보험 포함)",
     ]
     text = "\n".join(lines)
     send_message(text)

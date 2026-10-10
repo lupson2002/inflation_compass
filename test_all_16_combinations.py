@@ -72,6 +72,14 @@ def load_master_data():
     baa10y = _fred("BAA10Y").reindex(prices.index).ffill()
     dtb3 = _fred("DTB3").reindex(prices.index).ffill()
 
+    # BIL 상장(2007-05) 전은 DTB3 누적으로 잇는다 — bfill 이면 그 구간 수익이 0 이 된다(2026-10-10 상시 보험 BIL 5%)
+    if "BIL" in raw_aux and "Close" in raw_aux["BIL"]:
+        bil = raw_aux["BIL"]["Close"].squeeze().dropna()
+        first = bil.index[0]
+        accr = (1 + (dtb3.fillna(0) / 100 / 252)).cumprod()
+        synth = accr / accr.loc[:first].iloc[-1] * bil.iloc[0]
+        prices["BIL"] = bil.reindex(prices.index).ffill().where(prices.index >= first, synth)
+
     return prices, t5yie, vix, baa10y, dtb3
 
 
@@ -127,6 +135,8 @@ def compute_signals(prices, t5yie, vix, baa10y, fred_lag: int = 0):
 
     vol_20_spy = returns["SPY"].rolling(20).std() * np.sqrt(252)
     ief_sma200 = prices["IEF"].rolling(200, min_periods=60).mean()
+    # 보유 섹터 자기 추세(2026-10-10): 주식 칸 2배는 그 섹터가 자기 200일선 위일 때만
+    sector_up = {f"{t.lower()}_up": prices[t] > prices[t].rolling(200).mean() for t in ("XLE", "XLK", "XLU")}
 
     valid = spy_sma200.notna() & slope.notna() & t5yie.notna() & t5yie_60_ago.notna() & fng.notna()
     df_signals = pd.DataFrame({
@@ -140,6 +150,7 @@ def compute_signals(prices, t5yie, vix, baa10y, fred_lag: int = 0):
         "vol_20_spy": vol_20_spy,
         "ief": prices["IEF"],
         "ief_sma200": ief_sma200,
+        **sector_up,
     })[valid]
 
     return df_signals, returns
