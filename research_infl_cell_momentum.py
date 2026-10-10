@@ -1,6 +1,7 @@
 """인플레만 칸 = GLD·XLU·XLE 모멘텀 1위 테스트 (infl_cell_momentum_prereg.md, 9c3c064). 운용 반영 아님 — 연구용.
 
-    python3 research_infl_cell_momentum.py
+    python3 research_infl_cell_momentum.py          # 후보 GLD·XLU·XLE
+    python3 research_infl_cell_momentum.py --xlb    # 시험 2: + XLB
 """
 from __future__ import annotations
 
@@ -12,7 +13,10 @@ import run_16_matrix_experiments as r16
 from research_cssa_strategies import mix, stats
 from test_all_16_combinations import compute_signals, load_master_data
 
+import sys
+
 LAST = pd.Timestamp("2026-09-30")
+CANDS = ("GLD", "XLU", "XLE", "XLB") if "--xlb" in sys.argv else ("GLD", "XLU", "XLE")
 VARIANTS = {"XLU100 (현행)": "xlu", "모멘텀 1·3·6 (주)": "mom136", "민감도 3개월": "mom63", "민감도 6개월": "mom126",
             "민감도 12개월": "mom252", "민감도 1·3·6+절대필터": "mom136abs"}
 
@@ -26,7 +30,7 @@ def main() -> int:
     orig = r16.leverage
     rows, monthly = {}, {}
     for name, cell in VARIANTS.items():
-        prm = r16.Params(infl_cell=cell)
+        prm = r16.Params(infl_cell=cell, infl_candidates=CANDS)
         for acct in ("일반", "연금"):
             if acct == "연금":
                 r16.leverage = pens
@@ -61,9 +65,9 @@ def main() -> int:
             continue
         row = {"월": f"{d0:%Y-%m}"}
         for name, cell in (("주", "mom136"), ("3m", "mom63"), ("12m", "mom252")):
-            a = r16.infl_cell_asset(s, r16.Params(infl_cell=cell))
+            a = r16.infl_cell_asset(s, r16.Params(infl_cell=cell, infl_candidates=CANDS))
             row[name] = a
-        for t in ("XLU", "GLD", "XLE"):
+        for t in CANDS:
             row[f"{t}%"] = round((prices.loc[d1, t] / prices.loc[d0, t] - 1) * 100, 1)
         m1 = d1.to_period("M").to_timestamp("M")
         row["현행 일반%"] = round(monthly[("일반", "XLU100 (현행)")].get(m1, float("nan")) * 100, 1)

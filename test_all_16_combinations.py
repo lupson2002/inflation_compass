@@ -136,9 +136,9 @@ def compute_signals(prices, t5yie, vix, baa10y, fred_lag: int = 0):
     vol_20_spy = returns["SPY"].rolling(20).std() * np.sqrt(252)
     ief_sma200 = prices["IEF"].rolling(200, min_periods=60).mean()
     # 보유 섹터 자기 추세(2026-10-10): 주식 칸 2배는 그 섹터가 자기 200일선 위일 때만
-    sector_up = {f"{t.lower()}_up": prices[t] > prices[t].rolling(200).mean() for t in ("XLE", "XLK", "XLU", "GLD")}
+    sector_up = {f"{t.lower()}_up": prices[t] > prices[t].rolling(200).mean() for t in ("XLE", "XLK", "XLU", "GLD", "XLB")}
     # 인플레만 칸 모멘텀 후보(2026-10-10, infl_cell_momentum_prereg.md): 거래일 기준 수익
-    for t in ("GLD", "XLU", "XLE"):
+    for t in ("GLD", "XLU", "XLE", "XLB"):
         p = prices[t]
         r = {n: p / p.shift(n) - 1 for n in (21, 63, 126, 252)}
         sector_up[f"mom136_{t}"] = (r[21] + r[63] + r[126]) / 3

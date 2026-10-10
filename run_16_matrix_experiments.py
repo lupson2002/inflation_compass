@@ -44,6 +44,7 @@ class Params:
     lev_sector_trend: bool = True  # 주식 칸(XLE·XLK·XLU) 2배는 그 섹터가 자기 200일선 위일 때만(V4′, 2000년형 붕괴 초입 차단)
     infl_cell: str = "xlu"        # 인플레만 칸: "xlu"(현행) / "mom136"·"mom63"·"mom126"·"mom252"(GLD·XLU·XLE 중 모멘텀 1위)
                                   #   / "mom136abs"(1위 점수 < 0 이면 BIL) — infl_cell_momentum_prereg.md
+    infl_candidates: tuple = ("GLD", "XLU", "XLE")   # 모멘텀 후보(시험 2: + XLB)
     extra: dict = field(default_factory=dict, compare=False)
 
 
@@ -68,7 +69,7 @@ def infl_cell_asset(row, prm: Params) -> str:
     if prm.infl_cell == "xlu":
         return "XLU"
     key = prm.infl_cell.replace("abs", "")
-    score = {t: float(row[f"{key}_{t}"]) for t in INFL_CANDIDATES}
+    score = {t: float(row[f"{key}_{t}"]) for t in prm.infl_candidates}
     best = max(score, key=score.get)
     return "BIL" if prm.infl_cell.endswith("abs") and score[best] < 0 else best
 
