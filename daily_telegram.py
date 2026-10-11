@@ -95,6 +95,23 @@ def send_message(text):
         return False
 
 
+SHORT_KR = {"XLE": "에너지", "XLK": "기술", "XLU": "유틸리티", "XLP": "필수소비재", "IEF": "중기국채", "SHY": "단기채",
+            "GLD": "금", "BIL": "현금", "DBC": "원자재", "TLT": "장기국채", "SPY": "S&amp;P500", "QQQ": "나스닥",
+            "IWM": "소형주", "EFA": "선진국", "EEM": "신흥국", "TIP": "물가채", "GDX": "금광주", "VNQ": "리츠",
+            "LQD": "회사채", "HYG": "하이일드", "EMB": "신흥국채"}
+
+
+def _pct(v):
+    p = v * 100
+    return f"{p:.0f}%" if abs(p - round(p)) < 0.05 else f"{p:.1f}%"
+
+
+def bullets(weights):
+    """비중을 한 줄에 하나씩: '• XLE 에너지 85%' (큰 순서)."""
+    items = sorted(((k, v) for k, v in weights.items() if abs(v) > 1e-6), key=lambda kv: -kv[1])
+    return [f"• <b>{k}</b> {SHORT_KR.get(k, '')} {_pct(v)}".replace("  ", " ") for k, v in items] or ["• 현금 100%"]
+
+
 def weights_str(weights):
     return " + ".join(f"{t} ({TICKER_KR.get(t, t)}) {w * 100:.0f}%" for t, w in weights.items())
 
@@ -126,66 +143,69 @@ def main():
     pmix = pension_mix.mix_position(prices, t5yie, vix, hy_spread)
     pic, pent = pmix["ic"], pmix["pentarch"]
     if pent is None:
-        pent_line = "PENTARCH(50%): ⚠️ 신호 없음 — pentarch 05시 크론 확인"
+        pent_lines = ["└ PENTARCH 50%", "   ⚠️ 신호 없음 (05시 크론 확인)"]
     else:
-        pent_line = (f"PENTARCH(50%): {pension_mix.weights_str(pent['target'])} ({pent['effective_since']}부터)"
-                     + (f" ⚠️ {pent['stale_days']}일 지난 신호" if pent["stale"] else ""))
+        pent_lines = [f"└ PENTARCH 50% · {pent.get('model', '')}", *["   " + b for b in bullets(pent["target"])],
+                      f"   {pent['effective_since'][5:]}부터" + (f" · ⚠️ {pent['stale_days']}일 지남" if pent["stale"] else "")]
 
-    def regime_str(regime):
-        return f"성장 {'상승' if regime[0] else '하락'} · 인플레이션 {'상승' if regime[1] else '하락'}"
+    # 휴대폰 폭(약 30자)에 맞춘 세로 배치 — 한 줄에 정보 하나 (2026-10-11)
+    def cell_name(g, i):
+        return {(True, True): "에너지 칸", (True, False): "기술 칸", (False, True): "유틸리티 칸",
+                (False, False): "침체 칸"}[(bool(g), bool(i))]
 
+    def regime_line(g, i):
+        return f"성장 {'↑' if g else '↓'} · 인플레 {'↑' if i else '↓'}"
+
+    def exp_label(e):
+        return "2배 (공포)" if e > 1.0 else ("0.5배 (탐욕)" if e < 1.0 else "1배")
+
+    cur_w, prev_w = fng_pos["final_weights"], prev["final_weights"]
+    same_as_held = all(abs(cur_w.get(k, 0) - prev_w.get(k, 0)) < 1e-9 for k in set(cur_w) | set(prev_w))
+    next_dec = pd.Timestamp(cur_date) + pd.offsets.BMonthEnd(0)      # 이번 달 마지막 영업일(오늘이 월말이면 오늘)
     be_mom = "상승 ✔" if details["breakeven_momentum_on"] else "하락 ✘"
-    as_mom = "양수 ✔" if details["asset_momentum_on"] else "≤ 0 ✘"
     lv = "✔" if details["level_on"] else "✘"
-    infl_tag = "상승" if details["inflation_on"] else "하락"
-    ind_change = details["indicator"] - details["indicator_60ago"]
-    ind_arrow = "↗" if ind_change >= 0 else "↘"
-
-    # Exposure emoji tag
-    exp_badge = (
-        "⚡ <b>2.0배 공격 레버리지</b>" if fng_pos["exposure"] > 1.0
-        else ("🛡️ <b>0.5배 위험축소 (현금 50%)</b>" if fng_pos["exposure"] < 1.0
-              else "⚖️ <b>1.0배 정규 비중</b>")
-    )
+    dow = "월화수목금토일"[next_dec.weekday()]
+    ief_info = ("IEF &lt; 200일선 → 단기채" if fng_pos["bond_shield"] else
+                ("IEF 200일선 위 → IEF" if not fng_pos["growth_on"] and not fng_pos["inflation_on"] else "해당 없음 (침체 칸 아님)"))
 
     lines = [
-        "🧭 <b>Inflation Compass · 일간 리포트</b>",
+        "🧭 <b>Inflation Compass</b>",
+        f"{cur_date:%Y-%m-%d} 종가 기준",
         "",
-        f"🔄 <b>오늘 시점 계산</b> ({cur_date.date()})",
-        f"매크로: <b>{regime_str((fng_pos['growth_on'], fng_pos['inflation_on']))}</b>",
-        f"기본 비중: <b>{weights_str(fng_pos['base_weights'])}</b>"
-        + (" (채권방어: IEF &lt; 200일선)" if fng_pos["bond_shield"] else ""),
+        "📍 <b>국면</b>",
+        regime_line(fng_pos["growth_on"], fng_pos["inflation_on"]),
+        f"→ <b>{cell_name(fng_pos['growth_on'], fng_pos['inflation_on'])}</b>",
         "",
-        f"🧠 <b>확정 전략 × {fng_pos['index_name']}</b>",
-        f"지수(신호): <b>{fng_pos['current_fng']:.1f}점</b> ({fng_pos['current_rating_kr']} {fng_pos['current_emoji']})",
-        "참고 CNN F&amp;G: " + (f"{fng_pos['cnn_score']:.1f}점 ({fng_pos['cnn_rating_kr']})" if fng_pos["cnn_score"] is not None else "조회 실패"),
-        f"권장 포지션: {exp_badge}",
-        f"최종 비중: <b>{weights_str(fng_pos['final_weights'])}</b>",
-        f"근거: <i>{html.escape(fng_pos['action_reason'])}</i>",
-        "규칙: 지수 &lt; 15 → 2배(주식 칸은 섹터 200일선 위일 때만) · &gt; 85 → 0.5배 · 그 외 1배 · 상시 보험 금10·BIL5 (월말 판단)",
+        f"💼 <b>일반계좌 · {exp_label(fng_pos['exposure'])}</b>",
+        *bullets(cur_w),
+        f"IC 지수 <b>{fng_pos['current_fng']:.0f}</b> ({fng_pos['current_rating_kr'].split(' (')[0]})",
+        "CNN " + (f"{fng_pos['cnn_score']:.0f} (참고)" if fng_pos["cnn_score"] is not None else "조회 실패"),
         "",
-        f"📅 <b>직전 월말 결정 ({prev['date'].date()}) — 현재 보유</b>",
-        f"{regime_str((prev['growth_on'], prev['inflation_on']))} → <b>{weights_str(prev['final_weights'])}</b> ({prev['exposure']:.1f}배)",
+        f"📅 <b>지금 보유</b> ({prev['date']:%m-%d} 결정)",
+        *(["위와 같음 · 매매 없음"] if same_as_held else
+          [f"{regime_line(prev['growth_on'], prev['inflation_on'])} · {exp_label(prev['exposure'])}", *bullets(prev_w),
+           "⚠️ 월말에 위 비중으로 교체"]),
+        f"다음 판단 {next_dec:%m-%d}({dow}) 종가 전",
         "",
-        f"🎯 <b>인플레이션 판정 ({infl_tag})</b>",
-        f"레벨: T5YIE {details['t5yie_now']:.2f}% {'&gt; 2.0%' if details['level_on'] else '≤ 2.0%'} {lv}",
-        f"Breakeven 모멘텀: {details['t5yie_now']:.2f}% vs 60거래일 전 {details['t5yie_60ago']:.2f}% → {be_mom}",
-        f"Asset 모멘텀: 기울기 = {details['slope_num']:.4f}/{details['slope_denom']:.0f} = <b>{details['slope_val']:.4f}</b> → {as_mom}",
+        "🏦 <b>연금 합계</b>",
+        *bullets(pmix["weights"]),
+        f"└ IC 연금형 50% · {pic['exposure']:.1f}배" + (" · 채권방어" if pic["bond_shield"] else ""),
+        *["   " + b for b in bullets(pic["final_weights"])],
+        *pent_lines,
         "",
-        f"📊 <b>Confirming Basket</b>: {details['indicator_60ago']:.3f} → {details['indicator']:.3f} {ind_arrow} ({ind_change:+.3f})",
-        f"수혜: " + " · ".join(f"{t} {v*100:+.1f}%" for t, v in details["pos_contrib"].items()),
-        f"방어: " + " · ".join(f"{t} {v*100:+.1f}%" for t, v in details["neg_contrib"].items()),
+        "🔎 <b>신호 상세</b>",
+        f"성장: SPY 200일선 {'위 ✔' if fng_pos['growth_on'] else '아래 ✘'}",
+        f"인플레: {'켜짐 ✔' if details['inflation_on'] else '꺼짐 ✘'}",
+        f" · T5YIE {details['t5yie_now']:.2f}% {lv} (기준 2%)",
+        f" · 60일 전 {details['t5yie_60ago']:.2f}% → {be_mom}",
+        f" · 업종 기울기 {details['slope_val']:+.4f} {'✔' if details['asset_momentum_on'] else '✘'}",
+        f"채권방어: {ief_info}",
+        f"2배 조건: 지수 &lt; 15 (지금 {fng_pos['current_fng']:.0f})",
         "",
-        f"📈 <b>전략 성과 비교</b> ({start} ~ {end})",
-        f"• 원본 IC: CAGR <b>{cagr * 100:.1f}%</b> · MDD <b>{mdd * 100:.1f}%</b>",
-        "• <b>확정 전략</b>: CAGR <b>19.5%</b> · MDD <b>-20.2%</b> (실거래 조건, 30bp·DTB3 차입, 상시 보험 금10·BIL5 포함)",
-        "",
-        "🏦 <b>연금 운용 (IC 연금형 50% + PENTARCH 비레버리지 50%)</b>",
-        f"IC 연금형(50%): {pension_mix.weights_str(pic['final_weights'])} · 노출 {pic['exposure']:.1f}배"
-        + (" · 채권방어" if pic["bond_shield"] else ""),
-        pent_line,
-        f"합계: <b>{pension_mix.weights_str(pmix['weights'])}</b>",
-        "백테스트 2008~: 연 15.3% · MDD −13.0% (월말, 상시 보험·침체 IEF100 포함)",
+        "📈 <b>백테스트</b>",
+        "일반 19.5% · MDD −20.2%",
+        "연금 혼합 15.3% · MDD −13.0%",
+        f"<i>원본 IC {cagr * 100:.1f}% · MDD {mdd * 100:.1f}%</i>",
     ]
     text = "\n".join(lines)
     send_message(text)
