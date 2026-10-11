@@ -46,5 +46,6 @@ pages = [
     st.Page("views/pct_position.py", title="Percentile Channels · 현재 포지션"),
     st.Page("views/pct_methodology.py", title="Percentile Channels · 전략 설명"),
     st.Page("views/pension.py", title="연금 운용 · IC 연금형 + PENTARCH"),
+    st.Page("views/pentarch_methodology.py", title="연금 운용 · PENTARCH 전략 설명"),
 ]
 st.navigation(pages).run()
