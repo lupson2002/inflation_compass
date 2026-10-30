@@ -25,8 +25,22 @@ PENTARCH_JSON = Path(os.getenv("PENTARCH_PENSION_JSON", "/home/mikey/pentarch/ou
 LOCAL_COPY = BASE_DIR / "data" / "pentarch_pension_target.json"
 IC_WEIGHT, PENT_WEIGHT = 0.35, 0.65
 STALE_DAYS = 5
-BACKTEST = {"기간": "2008-02 ~ 2026-10 (월말, 다음 날 체결)", "CAGR": 0.146, "MDD": -0.145,
-            "IC 단독": (0.145, -0.206), "PENTARCH 단독": (0.144, -0.148)}
+# 2026-10-31 pentarch docs/103 D4: PENTARCH DBC 자리 = 글로벌 자원생산기업(276000) 반영 (DBC 기준 14.6% → 13.9%)
+BACKTEST = {"기간": "2008-02 ~ 2026-10 (월말, 다음 날 체결)", "CAGR": 0.139, "MDD": -0.145,
+            "IC 단독": (0.145, -0.206), "PENTARCH 단독": (0.135, -0.190)}   # PENTARCH 단독은 일간 지표(pension_target.json)
+
+# 미국 신호 종목 → 연금계좌(IRP·DC·연금저축)에서 사는 국내 상장 ETF (2026-10-31, pentarch docs/103·104).
+# DBC 는 PENTARCH 가 이미 GUNR 로 바꿔 내보내고, IC 연금형의 DBC 칸(인플레 p2)은 2003년 이후 켜진 적이 없다.
+KR_ETF = {
+    "XLE": "KODEX 미국S&P500에너지(합성) 218420", "XLK": "TIGER 미국나스닥100 133690",
+    "QQQ": "TIGER 미국나스닥100 133690", "XLU": "KODEX 미국S&P500유틸리티 463640",
+    "GUNR": "TIGER 글로벌자원생산기업(합성 H) 276000", "DBC": "TIGER 글로벌자원생산기업(합성 H) 276000",
+    "GLD": "ACE KRX금현물 411060", "SPY": "TIGER 미국S&P500 360750",
+    "IEF": "ACE 미국10년국채액티브 0085P0", "TLT": "ACE 미국30년국채액티브(H) 453850",
+    "SHY": "TIGER 미국달러단기채권액티브 329750", "BIL": "TIGER 미국초단기(3개월이하)국채 0046A0",
+    "IWM": "KODEX 미국러셀2000(H) 280930", "EEM": "PLUS 신흥국MSCI(합성 H) 195980",
+    "VNQ": "TIGER 미국MSCI리츠(합성 H) 182480",
+}
 
 
 def load_pentarch_target() -> dict | None:

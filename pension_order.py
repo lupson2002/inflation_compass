@@ -1,4 +1,4 @@
-"""연금 주문서 — IC 연금형 35% + PENTARCH 비레버리지 65%(1위 35 · 2위 30) 합계 목표를 한국 장 시작 전에 텔레그램으로 보낸다(2026-10-30).
+"""연금 주문서 — IC 연금형 35% + PENTARCH 비레버리지 65%(1위 35 · 2위 30) 합계 목표와 그 국내 ETF(2026-10-31)를 한국 장 시작 전에 텔레그램으로 보낸다(2026-10-30).
 
 평일 08:00 KST cron. 미국 장 마감(서머타임 05:00 / 표준시 06:00 KST) 뒤, PENTARCH 연금 신호(06:40 재수집 실행)가 끝난 뒤.
 - 연금은 월 1회 매매: 미국 월말 거래일 종가로 정한 비중을 다음 한 달 들고 간다.
@@ -10,6 +10,7 @@
 """
 from __future__ import annotations
 
+import html
 import sys
 
 import pandas as pd
@@ -39,6 +40,12 @@ def _month_ends(idx: pd.DatetimeIndex) -> pd.DatetimeIndex:
 def _scale(w: dict, k: float) -> dict:
     """슬리브 안 비중 → 계좌 기준 비중."""
     return {a: v * k for a, v in w.items()}
+
+
+def _kr_lines(w: dict) -> list[str]:
+    """계좌 기준 비중을 국내 ETF 이름으로: '• 금 ACE KRX금현물 411060 — 18.8%'."""
+    items = sorted(((k, v) for k, v in w.items() if abs(v) > 1e-6), key=lambda kv: -kv[1])
+    return [f"• <b>{dt._pct(v)}</b> {html.escape(PM.KR_ETF.get(k, k + ' (국내 대응 없음)'))} ({k})" for k, v in items]
 
 
 def _merge(ic: dict, pent: dict | None) -> dict:
@@ -93,6 +100,7 @@ def build_message() -> str:
         lines += ["😴 <b>오늘 매매 없음</b>", f"다음 판단: 미국 {nxt:%m-%d} 종가 → 그다음 한국 장", ""]
 
     lines += ["🎯 <b>들고 있을 비중</b> (계좌 기준)", *dt.bullets(total), "",
+              "🇰🇷 <b>국내 ETF로 사기</b>", *_kr_lines(total), "",
               f"└ IC {ic_pct} · {held_d:%m-%d} 결정 · {ic_held['exposure']:.1f}배" + (" · 채권방어" if ic_held["bond_shield"] else ""),
               *["   " + b for b in dt.bullets(_scale(ic_held["final_weights"], PM.IC_WEIGHT))]]
     if pent is None:
