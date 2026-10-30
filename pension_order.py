@@ -115,7 +115,8 @@ def build_message() -> str:
         lines += ["", "👀 <b>참고: 오늘 종가로 보면 IC 는</b>", *["   " + b for b in dt.bullets(_scale(ic_now["final_weights"], PM.IC_WEIGHT))],
                   "   (월말까지 바뀔 수 있음 · 지금은 매매 안 함)"]
     bt = PM.BACKTEST
-    lines += ["", f"📈 백테스트 {bt['기간'].split(' (')[0]}: 연 {bt['CAGR']*100:.1f}% · 최대낙폭 {bt['MDD']*100:.1f}%"]
+    lines += ["", f"📈 백테스트 {bt['기간'].split(' (')[0]}: 연 {bt['CAGR']*100:.1f}% · 최대낙폭 {bt['MDD']*100:.1f}% (달러)",
+              f"   원화(국내 ETF 환노출): 연 {bt['원화 환노출'][0]*100:.1f}% · 최대낙폭 {bt['원화 환노출'][1]*100:.1f}%"]
     return "\n".join(lines)
 
 
