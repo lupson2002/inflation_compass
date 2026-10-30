@@ -206,7 +206,7 @@ with col_neg:
 st.caption("수혜 바스켓 = 0.5·XLE + ⅙·XLI + ⅙·XLF + ⅙·XLB · 방어 바스켓 = ⅓·XLU + ⅓·XLV + ⅓·XLP · 지표 = 수혜누적 ÷ 방어누적")
 
 # ─────────────────────────────────────────────────────────────
-# 연금 운용 — IC 연금형 50% + PENTARCH 비레버리지 50% (하단)
+# 연금 운용 — IC 연금형 34% + PENTARCH 비레버리지 66% (하단, 비율은 pension_mix)
 # ─────────────────────────────────────────────────────────────
 st.markdown("---")
 st.markdown("## 🏦 연금 운용 · IC 연금형 50 + PENTARCH 50")
@@ -221,8 +221,8 @@ pent_txt = ("신호 없음 — pentarch 05시 크론 확인" if pent is None els
 st.markdown(
     f"""
     <div style="background:#f7f8f4;border:1px solid #e1e0d9;border-radius:10px;padding:18px 20px">
-    <div style="font-size:13px;color:#52564d">IC 연금형(50%): {PM.weights_str(pic['final_weights'])} · 노출 {pic['exposure']:.1f}배
-    {' · 채권방어' if pic['bond_shield'] else ''}<br/>PENTARCH 비레버리지(50%): {pent_txt}</div>
+    <div style="font-size:13px;color:#52564d">IC 연금형({PM.label(PM.IC_WEIGHT)}): {PM.weights_str(pic['final_weights'])} · 노출 {pic['exposure']:.1f}배
+    {' · 채권방어' if pic['bond_shield'] else ''}<br/>PENTARCH 비레버리지({PM.label(PM.PENT_WEIGHT)}): {pent_txt}</div>
     <div style="font-size:22px;font-weight:700;color:#bb6b2c;margin-top:8px">{PM.weights_str(pmix['weights'])}</div>
     <div style="font-size:12px;color:#898781;margin-top:8px">백테스트 2008-02~2026-09 월말: 연 15.3% · MDD −13.0% — 상세는 「연금 운용」 페이지</div>
     </div>

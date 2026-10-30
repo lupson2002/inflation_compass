@@ -1,6 +1,6 @@
 """연금 운용 — 대시보드 (2026-10-09 개편).
 
-위: 확정 연금 혼합 IC 연금형 50% + PENTARCH 비레버리지 50% 의 현재 포지션과 백테스트(pension_mix.py).
+위: 확정 연금 혼합 IC 연금형 34% + PENTARCH 비레버리지 66% 의 현재 포지션과 백테스트(pension_mix.py).
 아래: 종전 dual-momentum 연구(CSV)의 정적/동적 전략 — 참고용.
 """
 
@@ -45,7 +45,7 @@ with c1:
     regime = f"성장 {'상승' if ic['growth_on'] else '하락'} · 인플레이션 {'상승' if ic['inflation_on'] else '하락'}"
     st.markdown(
         f"""<div style="background:#f7f8f4;border:1px solid #e1e0d9;border-radius:10px;padding:16px 18px;height:100%">
-        <div style="font-size:14px;font-weight:600">🧭 IC 연금형 (50%)</div>
+        <div style="font-size:14px;font-weight:600">🧭 IC 연금형 ({PM.label(PM.IC_WEIGHT)})</div>
         <div style="font-size:12px;color:#52564d;margin:4px 0 8px">{regime} · IC 위험선호 지수 {ic['index']:.1f} · 노출 {ic['exposure']:.1f}배</div>
         <div style="font-size:18px;font-weight:700;color:#bb6b2c">{PM.weights_str(ic['final_weights'])}</div>
         <div style="font-size:11px;color:#898781;margin-top:6px">{'채권방어 작동 중(IEF &lt; 200일선)' if ic['bond_shield'] else '확정 전략과 같은 국면 판단, 2배 레버리지만 뺌'}</div>
@@ -60,7 +60,7 @@ with c2:
                 f"<div style='font-size:18px;font-weight:700;color:#bb6b2c'>{PM.weights_str(pent['target'])}</div>{warn}")
     st.markdown(
         f"""<div style="background:#f7f8f4;border:1px solid #e1e0d9;border-radius:10px;padding:16px 18px;height:100%">
-        <div style="font-size:14px;font-weight:600">🏛️ PENTARCH 비레버리지 (50%)</div>{body}</div>""", unsafe_allow_html=True)
+        <div style="font-size:14px;font-weight:600">🏛️ PENTARCH 비레버리지 ({PM.label(PM.PENT_WEIGHT)})</div>{body}</div>""", unsafe_allow_html=True)
 with c3:
     st.markdown(
         f"""<div style="background:#fff;border:2px solid #bb6b2c;border-radius:10px;padding:16px 18px;height:100%">

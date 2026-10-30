@@ -143,9 +143,9 @@ def main():
     pmix = pension_mix.mix_position(prices, t5yie, vix, hy_spread)
     pic, pent = pmix["ic"], pmix["pentarch"]
     if pent is None:
-        pent_lines = ["└ PENTARCH 50%", "   ⚠️ 신호 없음 (05시 크론 확인)"]
+        pent_lines = [f"└ PENTARCH {pension_mix.label(pension_mix.PENT_WEIGHT)}", "   ⚠️ 신호 없음 (06:40 크론 확인)"]
     else:
-        pent_lines = [f"└ PENTARCH 50% · {pent.get('model', '')}", *["   " + b for b in bullets(pent["target"])],
+        pent_lines = [f"└ PENTARCH {pension_mix.label(pension_mix.PENT_WEIGHT)} · {pent.get('model', '')}", *["   " + b for b in bullets(pent["target"])],
                       f"   {pent['effective_since'][5:]}부터" + (f" · ⚠️ {pent['stale_days']}일 지남" if pent["stale"] else "")]
 
     # 휴대폰 폭(약 30자)에 맞춘 세로 배치 — 한 줄에 정보 하나 (2026-10-11)
@@ -189,7 +189,7 @@ def main():
         "",
         "🏦 <b>연금 합계</b>",
         *bullets(pmix["weights"]),
-        f"└ IC 연금형 50% · {pic['exposure']:.1f}배" + (" · 채권방어" if pic["bond_shield"] else ""),
+        f"└ IC 연금형 {pension_mix.label(pension_mix.IC_WEIGHT)} · {pic['exposure']:.1f}배" + (" · 채권방어" if pic["bond_shield"] else ""),
         *["   " + b for b in bullets(pic["final_weights"])],
         *pent_lines,
         "",
