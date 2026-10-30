@@ -111,7 +111,8 @@ def baa_backtest(px: pd.DataFrame, monthly: pd.DataFrame, variant: str = "keller
 
 
 def ic_pension_monthly(fred_lag: int = 1, cost_bp: float = COST_BP):
-    """IC 연금형 월 수익률(실거래 조건, 30bp) — run_16_matrix_experiments 엔진 재사용."""
+    """IC 연금형 월 수익률(30bp, 상시 보험 없음 — 2026-10-30) — run_16_matrix_experiments 엔진 재사용.
+    주의: 이 엔진은 월말 신호를 그 종가에 바로 체결한다(이상화). 다음 날 체결 판은 pentarch scripts/ic100_variants.py."""
     import run_16_matrix_experiments as r16
     from test_all_16_combinations import compute_signals, load_master_data
     prices, t5yie, vix, baa10y, dtb3 = load_master_data()
@@ -119,7 +120,7 @@ def ic_pension_monthly(fred_lag: int = 1, cost_bp: float = COST_BP):
     orig = r16.leverage
     r16.leverage = lambda past, p1, p4, prm: (0.5, False) if past[0]["fng"] > 85 else (1.0, False)
     try:
-        r = r16.simulate(sig, prices, dtb3, 0, 0, 1, 0, cost_bp=cost_bp)
+        r = r16.simulate(sig, prices, dtb3, 0, 0, 1, 0, prm=r16.Params(sleeve_gld=0.0, sleeve_bil=0.0), cost_bp=cost_bp)
     finally:
         r16.leverage = orig
     return r["monthly_ret"], dtb3
@@ -145,13 +146,13 @@ def stats(r: pd.Series) -> dict:
 
 
 def ic_pension_weights(prices, t5yie, vix, baa10y) -> dict:
-    """IC 연금형 오늘 기준 목표 비중(레버리지 없음)."""
+    """IC 연금형 오늘 기준 목표 비중(레버리지 없음, 상시 보험 없음 — 2026-10-30 사용자 결정: 계좌가 복잡해진다)."""
     import fng_engine as F
     idx = F.compute_synthetic_fng_series(prices, baa10y, vix).dropna()
     g, inf, below = F._macro_series(prices, t5yie)
     d = idx.index[-1]
     exposure = 0.5 if idx.loc[d] > 85 else 1.0
-    w = F.confirmed_weights(bool(g.loc[d]), bool(inf.loc[d]), bool(below.loc[d]), exposure)
+    w = F.confirmed_weights(bool(g.loc[d]), bool(inf.loc[d]), bool(below.loc[d]), exposure, sleeve={})
     return {"date": d, "index": float(idx.loc[d]), "growth_on": bool(g.loc[d]), "inflation_on": bool(inf.loc[d]), **w}
 
 

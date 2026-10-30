@@ -116,7 +116,7 @@ def fear_exposure(t0: float, growth_on: bool = True) -> tuple[float, str]:
 
 
 def confirmed_weights(growth_on: bool, inflation_on: bool, ief_below_ma: bool, exposure: float,
-                      sector_up: bool = True) -> dict:
+                      sector_up: bool = True, sleeve: dict | None = None) -> dict:
     """확정 전략(2026-10-10, run_16_matrix_experiments 기본 Params) 목표 비중.
 
     - 국면 칸 85% + 상시 보험 15%(금 GLD 10 · 초단기채 BIL 5). 배수는 이 비중 전체에 곱한다.
@@ -138,9 +138,10 @@ def confirmed_weights(growth_on: bool, inflation_on: bool, ief_below_ma: bool, e
         regime = {"SHY": 1.0}
     else:
         regime = {"IEF": 1.0}
-    ins = sum(SLEEVE.values())
+    sleeve = SLEEVE if sleeve is None else sleeve        # 연금형은 {} (상시 보험 없음, 2026-10-30)
+    ins = sum(sleeve.values())
     base = {k: v * (1 - ins) for k, v in regime.items()}
-    for k, v in SLEEVE.items():
+    for k, v in sleeve.items():
         base[k] = base.get(k, 0.0) + v
     sector_capped = False
     if exposure > 1.0 and (shield or (not slowdown and not sector_up)):

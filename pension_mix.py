@@ -1,17 +1,16 @@
-"""연금 운용 확정 혼합 (2026-10-30 비율 변경): IC 연금형 34% + PENTARCH 비레버리지 66%.
+"""연금 운용 확정 혼합 (2026-10-30): IC 연금형 35% + PENTARCH 비레버리지 65%(매력도 1위 35 · 2위 30).
 
-- IC 연금형: 확정 전략에서 레버리지만 뺀 것(4국면 섹터 85% + 상시 보험 금 10·BIL 5 + 침체 국면 채권방어 + IC 위험선호 지수 > 85 면 0.5배).
-  공포 2배는 연금형에 없다(빌리지 않음). 탐욕 0.5배는 있다.
-- PENTARCH 비레버리지: /home/mikey/pentarch 운용 모델(v18.6, 2026-10-29~) 신호에서 레버리지 ETF 만 끈 목표 비중.
+- IC 연금형: 4국면 섹터 칸 100% + 침체 국면 채권방어 + IC 위험선호 지수 > 85 면 0.5배(나머지 단기채).
+  상시 보험(금 10·BIL 5)은 연금에서 뺐다(2026-10-30 사용자 결정: 계좌가 복잡해진다). 공포 2배도 없다(빌리지 않음).
+- PENTARCH 비레버리지: /home/mikey/pentarch 운용 모델 v18.6 신호, 매력도 1위 35 · 2위 30(슬리브 안 53.8/46.2, pentarch docs/101).
   pentarch 크론(06:40 scripts/run_pension.sh, 데이터 재수집)이 output/pension_target.json 으로 낸다. 이 모듈은 그 파일을 읽기만 한다.
   Streamlit Cloud 처럼 그 경로가 없으면 data/pentarch_pension_target.json(마지막 로컬 사본)을 읽는다.
 
-비율 근거(pentarch docs/100): IC 백테스트는 신호를 만든 월말 종가에 바로 체결하는 가정이라 실제보다 좋게 나왔다.
-다음 거래일 체결로 바꾸면 Sharpe 최대 혼합은 IC 24~38%(평탄 14~50%) — 34/66 은 2003~·2008~ 두 구간 모두 평탄 구간 안, 50/50 은 2008~ 에서 밖.
-백테스트(월말 재조정 30bp, IC 다음 날 체결, PENTARCH v18.6 다음 날 체결, 월말 기준):
-  2008-02~2026-10: 혼합 14.2% / MDD −13.6%  ·  IC 단독 13.4% / −16.8%  ·  PENTARCH 단독 14.3% / −14.2%
-  2003-10~2026-10: 혼합 15.9% / −13.6%  (50/50 이었으면 16.2% / −13.7%, Sharpe 1.17 로 같다)
-종전 50/50 표기(10-09~10-29, IC 당일 종가 체결 가정): 15.3% / −13.0%.
+근거(pentarch docs/100·101): IC 백테스트는 월말 신호를 그 종가에 바로 체결하는 가정이라 실제보다 좋게 나온다 → 다음 날 체결로 평가.
+백테스트(월말 재조정 30bp, 둘 다 다음 날 체결, 월말 기준):
+  2008-02~2026-10: 혼합 14.6% / MDD −14.5% / Sharpe 1.08  ·  IC(보험 없음) 14.5% / −20.6%  ·  PENTARCH 35/30 14.4% / −14.8%
+  2003-10~2026-10: 혼합 16.4% / −14.8% / Sharpe 1.16
+  1위 30 · 2위 35 와의 차이는 ±0.1%p 안(사실상 같음). 보험이 있던 IC34/P66 은 14.2% / −13.6% — 보험을 빼면 수익 +0.4%p, 낙폭 −0.9%p.
 """
 from __future__ import annotations
 
@@ -24,10 +23,10 @@ from pathlib import Path
 BASE_DIR = Path(__file__).parent
 PENTARCH_JSON = Path(os.getenv("PENTARCH_PENSION_JSON", "/home/mikey/pentarch/output/pension_target.json"))
 LOCAL_COPY = BASE_DIR / "data" / "pentarch_pension_target.json"
-IC_WEIGHT, PENT_WEIGHT = 0.34, 0.66
+IC_WEIGHT, PENT_WEIGHT = 0.35, 0.65
 STALE_DAYS = 5
-BACKTEST = {"기간": "2008-02 ~ 2026-10 (월말, 다음 날 체결)", "CAGR": 0.142, "MDD": -0.136,
-            "IC 단독": (0.134, -0.168), "PENTARCH 단독": (0.143, -0.142)}
+BACKTEST = {"기간": "2008-02 ~ 2026-10 (월말, 다음 날 체결)", "CAGR": 0.146, "MDD": -0.145,
+            "IC 단독": (0.145, -0.206), "PENTARCH 단독": (0.144, -0.148)}
 
 
 def load_pentarch_target() -> dict | None:
