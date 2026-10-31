@@ -106,8 +106,13 @@ def build_message() -> str:
     if pent is None:
         lines += [f"└ PENTARCH {p_pct}", "   ⚠️ 신호 없음 (06:40 크론 확인)"]
     else:
-        lines += [f"└ PENTARCH {p_pct} · {pent.get('model', '')} · {pent['effective_since'][5:]}부터",
+        lines += [f"└ PENTARCH {p_pct} · {pent.get('model', '')} · {pent['effective_since']}부터",
                   *["   " + b for b in dt.bullets(_scale(p_t, PM.PENT_WEIGHT))]]
+        vl = pent.get("value_layer")
+        if vl:
+            why = ("유동성·신용 조임" if vl["guard"] else "감점 판단이 1년 성과 앞섬") if vl["penalty"] == "켜짐" \
+                else "감점 판단이 1년 성과 뒤짐 → 시장 추종"
+            lines.append(f"   밸류 감점 {vl['penalty']} ({why} · 12개월 {vl['E0_12m']*100:+.1f}% 대 {vl['E1_12m']*100:+.1f}%)")
         if pent["stale"]:
             lines.append(f"   ⚠️ 신호 {pent['stale_days']}일 지남")
     if not trade_today and any(abs(ic_now["final_weights"].get(k, 0) - ic_held["final_weights"].get(k, 0)) > 1e-6
