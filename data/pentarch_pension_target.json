@@ -1,20 +1,44 @@
 {
-  "model": "v18.3-nolev",
-  "generated_at": "2026-10-11T05:03:17",
-  "data_asof": "2026-10-09",
-  "target": {
-    "GLD": 0.5,
-    "DBC": 0.5
+  "model": "v18.6-nolev",
+  "rank_weights": [
+    35,
+    30
+  ],
+  "generated_at": "2026-10-31T15:17:11",
+  "data_asof": "2026-10-30",
+  "dbc_slot": "GUNR(국내 276000) — docs/103 D4",
+  "value_layer": {
+    "rule": "docs/107 B5",
+    "lambda": 1.0,
+    "asof": "2026-10-30",
+    "penalty": "켜짐",
+    "E0_12m": 0.1074,
+    "E1_12m": -0.0149,
+    "liquidity_z": 0.33,
+    "baa_12m_change": -0.12,
+    "guard": false
   },
-  "effective_since": "2026-04-01",
+  "reentry": {
+    "rule": "docs/112 T4",
+    "on": false,
+    "asof": "2026-10-30",
+    "baa_63d_change": -0.14,
+    "spy_63d": -0.0001
+  },
+  "target": {
+    "GLD": 0.5385,
+    "GUNR": 0.4615
+  },
+  "effective_since": "2025-11-03",
   "prev_target": {
-    "GLD": 1.0
+    "SPY": 0.4615,
+    "GLD": 0.5385
   },
   "backtest": {
     "era": "etf",
     "start": "2008-01-02",
-    "CAGR": 0.1559,
-    "MDD": -0.2307,
-    "Sharpe": 0.9141
+    "CAGR": 0.156,
+    "MDD": -0.1902,
+    "Sharpe": 0.9485
   }
 }

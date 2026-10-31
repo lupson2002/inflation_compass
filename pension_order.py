@@ -101,7 +101,8 @@ def build_message() -> str:
 
     lines += ["🎯 <b>들고 있을 비중</b> (계좌 기준)", *dt.bullets(total), "",
               "🇰🇷 <b>국내 ETF로 사기</b>", *_kr_lines(total), "",
-              f"└ IC {ic_pct} · {held_d:%m-%d} 결정 · {ic_held['exposure']:.1f}배" + (" · 채권방어" if ic_held["bond_shield"] else ""),
+              f"└ IC {ic_pct} · {held_d:%m-%d} 결정 · {ic_held['exposure']:.1f}배" + (" · 채권방어" if ic_held["bond_shield"] else "")
+              + (" · 신용 확인 재진입" if ic_held.get("reentry") else ""),
               *["   " + b for b in dt.bullets(_scale(ic_held["final_weights"], PM.IC_WEIGHT))]]
     if pent is None:
         lines += [f"└ PENTARCH {p_pct}", "   ⚠️ 신호 없음 (06:40 크론 확인)"]
@@ -113,6 +114,9 @@ def build_message() -> str:
             why = ("유동성·신용 조임" if vl["guard"] else "감점 판단이 1년 성과 앞섬") if vl["penalty"] == "켜짐" \
                 else "감점 판단이 1년 성과 뒤짐 → 시장 추종"
             lines.append(f"   밸류 감점 {vl['penalty']} ({why} · 12개월 {vl['E0_12m']*100:+.1f}% 대 {vl['E1_12m']*100:+.1f}%)")
+        rr = pent.get("reentry")
+        if rr and rr.get("on"):
+            lines.append(f"   재진입 신호 켜짐 (신용 스프레드 63일 {rr['baa_63d_change']:+.2f}%p · S&P 63일 {rr['spy_63d']*100:+.1f}%)")
         if pent["stale"]:
             lines.append(f"   ⚠️ 신호 {pent['stale_days']}일 지남")
     if not trade_today and any(abs(ic_now["final_weights"].get(k, 0) - ic_held["final_weights"].get(k, 0)) > 1e-6

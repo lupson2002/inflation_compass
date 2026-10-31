@@ -152,8 +152,19 @@ def ic_pension_weights(prices, t5yie, vix, baa10y) -> dict:
     g, inf, below = F._macro_series(prices, t5yie)
     d = idx.index[-1]
     exposure = 0.5 if idx.loc[d] > 85 else 1.0
-    w = F.confirmed_weights(bool(g.loc[d]), bool(inf.loc[d]), bool(below.loc[d]), exposure, sleeve={})
-    return {"date": d, "index": float(idx.loc[d]), "growth_on": bool(g.loc[d]), "inflation_on": bool(inf.loc[d]), **w}
+    reentry = reentry_ok(prices, baa10y).asof(d)
+    growth = bool(g.loc[d]) or bool(reentry)              # pentarch docs/112 T4: 신용 확인 조기 재진입
+    w = F.confirmed_weights(growth, bool(inf.loc[d]), bool(below.loc[d]), exposure, sleeve={})
+    return {"date": d, "index": float(idx.loc[d]), "growth_on": growth, "inflation_on": bool(inf.loc[d]),
+            "reentry": bool(reentry) and not bool(g.loc[d]), **w}
+
+
+def reentry_ok(prices, baa10y) -> pd.Series:
+    """pentarch docs/112 T4 — BAA10Y(하루 늦게) 63거래일 변화 < 0 그리고 SPY 63거래일 수익 > 0 인 날.
+    성장 신호(S&P > 200일선)가 꺼져 있어도 이 날은 성장 칸으로 돌아간다(빠지는 규칙은 그대로)."""
+    baa = baa10y.reindex(prices.index).ffill().shift(1)
+    spy = prices["SPY"]
+    return (((baa - baa.shift(63)) < 0) & (spy / spy.shift(63) - 1 > 0)).fillna(False)
 
 
 def pension_mix_position(prices, t5yie, vix, baa10y) -> dict:
