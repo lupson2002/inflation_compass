@@ -48,6 +48,25 @@ def _kr_lines(w: dict) -> list[str]:
     return [f"• <b>{dt._pct(v)}</b> {html.escape(PM.KR_ETF.get(k, k + ' (국내 대응 없음)'))} ({k})" for k, v in items]
 
 
+def _band(v: float, cuts: tuple, words: tuple) -> str:
+    """v 가 cuts(오름차순) 몇 번째 구간인지에 따라 words 중 하나."""
+    return words[sum(v > c for c in cuts)]
+
+
+def economy_line(eco: dict) -> str:
+    """PENTARCH 경제 판단 한 줄: 국면 확률(10% 이상) | 기둥 해석."""
+    probs = sorted(((k, v) for k, v in eco["regime_probs"].items() if v >= 0.10), key=lambda kv: -kv[1])
+    p = eco["pillars"]
+    desc = [
+        "성장 " + _band(p["growth_z"], (-1.0, 0.0, 1.0), ("침체", "약", "보통", "강")),
+        "인플레 " + _band(p["inflation_z"], (-0.5, 0.0, 0.5), ("낮음", "소폭↓", "소폭↑", "높음")),
+        "유동성 " + _band(p["liquidity_z"], (-0.3, 0.3), ("조임", "보통", "양호")),
+        "주식 " + _band(p["valuation_z"], (-1.0, -0.3, 0.3), ("매우 비쌈", "비쌈", "보통", "쌈")),
+        "심리 " + _band(p["sentiment_z"], (-0.5, 0.5), ("공포", "중립", "낙관")),
+    ]
+    return "   경제 판단: " + " · ".join(f"{k} {v*100:.0f}%" for k, v in probs) + " | " + " · ".join(desc)
+
+
 def _merge(ic: dict, pent: dict | None) -> dict:
     out: dict[str, float] = {}
     for k, w in ic.items():
@@ -109,6 +128,8 @@ def build_message() -> str:
     else:
         lines += [f"└ PENTARCH {p_pct} · {pent.get('model', '')} · {pent['effective_since']}부터",
                   *["   " + b for b in dt.bullets(_scale(p_t, PM.PENT_WEIGHT))]]
+        if pent.get("economy"):
+            lines.append(economy_line(pent["economy"]))
         vl = pent.get("value_layer")
         if vl:
             why = ("유동성·신용 조임" if vl["guard"] else "감점 판단이 1년 성과 앞섬") if vl["penalty"] == "켜짐" \

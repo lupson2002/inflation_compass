@@ -4,7 +4,7 @@
     35,
     30
   ],
-  "generated_at": "2026-10-31T15:17:11",
+  "generated_at": "2026-10-31T16:00:51",
   "data_asof": "2026-10-30",
   "dbc_slot": "GUNR(국내 276000) — docs/103 D4",
   "value_layer": {
@@ -24,6 +24,22 @@
     "asof": "2026-10-30",
     "baa_63d_change": -0.14,
     "spy_63d": -0.0001
+  },
+  "economy": {
+    "asof": "2026-10-30",
+    "regime_probs": {
+      "골디락스": 0.8,
+      "리플레이션": 0.2,
+      "스태그플레이션": 0.0,
+      "디플레이션": 0.0
+    },
+    "pillars": {
+      "growth_z": 3.0,
+      "inflation_z": 0.22,
+      "liquidity_z": 0.33,
+      "valuation_z": -1.68,
+      "sentiment_z": -0.11
+    }
   },
   "target": {
     "GLD": 0.5385,
