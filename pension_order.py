@@ -42,6 +42,29 @@ def _band(v: float, cuts: tuple, words: tuple) -> str:
     return words[sum(v > c for c in cuts)]
 
 
+def relative_gap(prices, t5yie, vix, hy, pent: dict | None, asof) -> dict | None:
+    """혼합 모델(IC35 + P65)의 최근 3·6개월 수익 − S&P (pentarch docs/115 우선순위 6). 자료가 모자라면 None."""
+    rm = (pent or {}).get("recent_monthly")
+    if not rm:
+        return None
+    me = _month_ends(prices.index)
+    ends = list(me[me < asof.to_period("M").to_timestamp()][-6:]) + [asof]     # 직전 6개 월말 + 오늘
+    rows = []
+    for a, b in zip(ends[:-1], ends[1:]):
+        w = PM.ic_weights_asof(prices, t5yie, vix, hy, a)["final_weights"]
+        ic_r = sum(v * (prices[k].asof(b) / prices[k].asof(a) - 1) for k, v in w.items() if k in prices)
+        p_r = rm.get(str(b.to_period("M")))
+        if p_r is None:
+            return None
+        rows.append((PM.IC_WEIGHT * ic_r + PM.PENT_WEIGHT * p_r, prices["SPY"].asof(b) / prices["SPY"].asof(a) - 1))
+    cum = lambda xs: float(pd.Series(xs).add(1).prod() - 1)              # noqa: E731
+    out = {}
+    for n in (3, 6):
+        last = rows[-n:]
+        out[n] = cum([x for x, _ in last]) - cum([y for _, y in last])
+    return out
+
+
 def _merge(ic: dict, pent: dict | None) -> dict:
     out: dict[str, float] = {}
     for k, w in ic.items():
@@ -127,6 +150,10 @@ def build_message() -> str:
     if not trade_today and any(abs(ic_now["final_weights"].get(k, 0) - ic_held["final_weights"].get(k, 0)) > 1e-6
                                for k in set(ic_now["final_weights"]) | set(ic_held["final_weights"])):
         notes.append("월말에 IC 가 " + "·".join(name(k) for k in ic_now["final_weights"]) + "(으)로 바뀔 수 있음")
+    gap = relative_gap(prices, t5yie, vix, hy, pent, asof)
+    if gap and min(gap.values()) < -0.10:
+        notes.append(f"최근 3·6개월 S&P 대비 {gap[3]*100:+.0f}%p · {gap[6]*100:+.0f}%p — "
+                     "위기 뒤 반등·실물자산 조정 때 반복된 구간, 규칙대로 유지")
     if notes:
         lines += ["", *[f"⚠️ {n}" for n in notes]]
     return "\n".join(lines)
