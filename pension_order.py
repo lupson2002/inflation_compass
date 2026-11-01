@@ -1,4 +1,4 @@
-"""연금 주문서(IC 일일 텔레그램 통합, 2026-10-31 간결판) — IC 연금형 35% + PENTARCH 비레버리지 65%(1위 35 · 2위 30) 합계 목표와 그 국내 ETF(2026-10-31)를 한국 장 시작 전에 텔레그램으로 보낸다(2026-10-30).
+"""연금 주문서(IC 일일 텔레그램 통합, 2026-10-31 간결판; 2026-11-01 PENTARCH 시장 위험 국면 표시 — docs/118 W2) — IC 연금형 35% + PENTARCH 비레버리지 65%(1위 35 · 2위 30) 합계 목표와 그 국내 ETF(2026-10-31)를 한국 장 시작 전에 텔레그램으로 보낸다(2026-10-30).
 
 평일 08:00 KST cron. 미국 장 마감(서머타임 05:00 / 표준시 06:00 KST) 뒤, PENTARCH 연금 신호(06:40 재수집 실행)가 끝난 뒤.
 - 연금은 월 1회 매매: 미국 월말 거래일 종가로 정한 비중을 다음 한 달 들고 간다.
@@ -135,6 +135,9 @@ def build_message() -> str:
             val = _band(eco["pillars"]["valuation_z"], (-1.0, -0.3, 0.3), ("주식 매우 비쌈", "주식 비쌈", "주식 보통", "주식 쌈"))
             top = f"{k} {v*100:.0f}% · {val} "
         lines.append(f"PENTARCH: {top}→ {'·'.join(name(k) for k in p_t)}")
+        rr = pent.get("risk_regime")
+        if rr:
+            lines.append(f"시장 위험: {'🔴 스트레스' if rr['on'] else '평온'}")
 
     # 4) 알아둘 것(있을 때만)
     notes = []
@@ -143,6 +146,10 @@ def build_message() -> str:
         notes.append("PENTARCH 밸류 감점 꺼짐 → 시장 추종 중")
     if (pent and (pent.get("reentry") or {}).get("on")) or ic_held.get("reentry"):
         notes.append("신용 확인 재진입 신호 켜짐 → 주식 복귀")
+    rr = (pent or {}).get("risk_regime") or {}
+    if rr.get("on"):
+        blk = "·".join(name(k) for k in rr.get("blocked", [])) or "없음"
+        notes.append(f"시장 스트레스({rr.get('since')}~) → 월말에 3개월 손실 자산 제외(지금 해당: {blk})")
     if ic_held["exposure"] < 1.0:
         notes.append("IC 과열(탐욕) → 절반은 단기채")
     if pent and pent["stale"]:
