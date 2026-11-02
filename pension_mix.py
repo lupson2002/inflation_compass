@@ -2,7 +2,7 @@
 
 - IC 연금형: 4국면 섹터 칸 100% + 침체 국면 채권방어 + IC 위험선호 지수 > 85 면 0.5배(나머지 단기채).
   상시 보험(금 10·BIL 5)은 연금에서 뺐다(2026-10-30 사용자 결정: 계좌가 복잡해진다). 공포 2배도 없다(빌리지 않음).
-- PENTARCH 비레버리지: /home/mikey/pentarch 운용 모델 v19.0 신호(연금 전략 v1.0), 매력도 1위 35 · 2위 30(슬리브 안 53.8/46.2, pentarch docs/101).
+- PENTARCH 비레버리지: /home/mikey/pentarch 운용 모델 v19.1 신호(연금 전략 v1.1), 매력도 1위 35 · 2위 30(슬리브 안 53.8/46.2, pentarch docs/101).
   pentarch 크론(06:40 scripts/run_pension.sh, 데이터 재수집)이 output/pension_target.json 으로 낸다. 이 모듈은 그 파일을 읽기만 한다.
   Streamlit Cloud 처럼 그 경로가 없으면 data/pentarch_pension_target.json(마지막 로컬 사본)을 읽는다.
 
@@ -26,10 +26,10 @@ LOCAL_COPY = BASE_DIR / "data" / "pentarch_pension_target.json"
 IC_WEIGHT, PENT_WEIGHT = 0.35, 0.65
 STALE_DAYS = 5
 # 2026-10-31 pentarch docs/103 D4(276000) + docs/107 B5 + docs/112 T4 + docs/116 K1(KS 는 원래 DBC 선물로) 반영
-PENSION_VERSION = "연금 전략 v1.0"   # 2026-11-02: IC 연금형 v2.0 35% + PENTARCH v19.0 65%(1위 35·2위 30), 국내 ETF
-BACKTEST = {"기간": "2008-02 ~ 2026-10 (월말, 다음 날 체결)", "CAGR": 0.174, "MDD": -0.123,
-            "IC 단독": (0.217, -0.180), "PENTARCH 단독": (0.162, -0.178),   # 연금 v1.0: IC v2.0(2003-10~) · PENTARCH v19.0 연금판(2008-02~)
-            "원화 환노출": (0.179, -0.170)}   # 국내 ETF 전부 환노출(276000 만 H) 원화 환산 2004~, pentarch docs/104 §6 방식
+PENSION_VERSION = "연금 전략 v1.1"   # 2026-11-02: IC 연금형 v2.1 35% + PENTARCH v19.1 65% (v1.0 = IC v2.0 + PENTARCH v19.0), 1위 35·2위 30, 국내 ETF
+BACKTEST = {"기간": "2008-02 ~ 2026-10 (월말, 다음 날 체결)", "CAGR": 0.183, "MDD": -0.121,
+            "IC 단독": (0.219, -0.177), "PENTARCH 단독": (0.169, -0.178),   # 연금 v1.1: IC v2.1(2003-10~) · PENTARCH v19.1 연금판(2008-02~)
+            "원화 환노출": (0.184, -0.170)}   # 국내 ETF 전부 환노출(276000 만 H) 원화 환산 2004~, pentarch docs/104 §6 방식
 
 # 미국 신호 종목 → 연금계좌(IRP·DC·연금저축)에서 사는 국내 상장 ETF (2026-10-31, pentarch docs/103·104).
 # 채권도 환노출(2026-10-31 사용자 제안 반영, docs/104 §6: 위기 때 원화 약세가 방어를 보탠다, 헤지 비용 없음). 276000 은 H 만 있다.

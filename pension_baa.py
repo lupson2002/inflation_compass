@@ -147,7 +147,7 @@ def stats(r: pd.Series) -> dict:
             "Sharpe": r.mean() / r.std() * np.sqrt(12), "worst": r.min(), "mult": eq.iloc[-1]}
 
 
-IC_VERSION = "IC 연금형 v2.0"   # v1.0 연금형(무레버·무보험·다음 날 체결, 10-30) → v1.1 T4(10-31) → v2.0 G1S(11-02)
+IC_VERSION = "IC 연금형 v2.1"   # v1.0 연금형(무레버·무보험·다음 날 체결, 10-30) → v1.1 T4(10-31) → v2.0 G1S(11-02) → v2.1 I3 인플레 히스테리시스 2.15/1.85(11-02, docs/127)
 STRESS_PATH = "/home/mikey/pentarch/output/stress_path.parquet"     # pentarch pension_signal(06:40)이 매일 갱신
 
 
@@ -180,12 +180,29 @@ def employment_hold(prices, d) -> bool:
     return bool(ok.asof(d)) and not bool(st.asof(d))
 
 
+INFL_ON, INFL_OFF = 2.15, 1.85   # docs/127 I3: 5년 BEI 켜기/끄기 문턱(띠 폭 2h = BEI 월간 변화 1σ 0.26%p, 중심 2.0)
+
+
+def inflation_hysteresis(prices, t5yie, on: float = INFL_ON, off: float = INFL_OFF) -> pd.Series:
+    """인플레 판정 = 수준(히스테리시스: BEI > on 이면 켜고 < off 이면 끄고, 사이면 직전 상태) ∧ 모멘텀(기존 그대로).
+    모멘텀 부분은 _macro_series 에 BEI + 10 을 넣어(수준 항상 통과) 얻는다 — 백테스트(ic127_grid)와 같은 계산."""
+    import fng_engine as F
+    _, mom, _ = F._macro_series(prices, t5yie + 10.0)
+    level, state = [], False
+    for x in t5yie.reindex(mom.index).to_numpy():
+        if np.isfinite(x):
+            state = True if x > on else (False if x < off else state)
+        level.append(state)
+    return pd.Series(level, index=mom.index) & mom.fillna(False).astype(bool)
+
+
 def ic_pension_weights(prices, t5yie, vix, baa10y) -> dict:
-    """IC 연금형 v2.0 오늘 기준 목표 비중(레버리지 없음, 상시 보험 없음 — 2026-10-30 사용자 결정: 계좌가 복잡해진다).
+    """IC 연금형 v2.1 오늘 기준 목표 비중(레버리지 없음, 상시 보험 없음 — 2026-10-30 사용자 결정: 계좌가 복잡해진다).
     성장 = S&P > 200일선 ∨ G1S 고용 유예(docs/123) ∨ T4 신용 확인 재진입(docs/112)."""
     import fng_engine as F
     idx = F.compute_synthetic_fng_series(prices, baa10y, vix).dropna()
-    g, inf, below = F._macro_series(prices, t5yie)
+    g, _, below = F._macro_series(prices, t5yie)
+    inf = inflation_hysteresis(prices, t5yie)          # docs/127 I3
     d = idx.index[-1]
     exposure = 0.5 if idx.loc[d] > 85 else 1.0
     reentry = reentry_ok(prices, baa10y).asof(d)
@@ -193,6 +210,7 @@ def ic_pension_weights(prices, t5yie, vix, baa10y) -> dict:
     growth = bool(g.loc[d]) or hold or bool(reentry)
     w = F.confirmed_weights(growth, bool(inf.loc[d]), bool(below.loc[d]), exposure, sleeve={})
     return {"date": d, "index": float(idx.loc[d]), "growth_on": growth, "inflation_on": bool(inf.loc[d]),
+            "bei": round(float(t5yie.dropna().iloc[-1]), 2), "infl_band": [INFL_OFF, INFL_ON],
             "reentry": bool(reentry) and not bool(g.loc[d]) and not hold, "employment_hold": hold,
             "version": IC_VERSION, **w}
 
