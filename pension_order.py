@@ -1,4 +1,4 @@
-"""연금 주문서(IC 일일 텔레그램 통합, 2026-10-31 간결판; 2026-11-01 PENTARCH 시장 위험 국면 표시 — docs/118 W2; 2026-11-02 VRP 보험료 — docs/121 V1; 2026-11-02 연금 전략 v1.0 = IC 연금형 v2.0(G1S) + PENTARCH v19.0; 같은 날 v1.1 = IC v2.1(I3 히스테리시스) + PENTARCH v19.1(P7 글로벌 패닉)) — IC 연금형 35% + PENTARCH 비레버리지 65%(1위 35 · 2위 30) 합계 목표와 그 국내 ETF(2026-10-31)를 한국 장 시작 전에 텔레그램으로 보낸다(2026-10-30).
+"""연금 주문서(IC 일일 텔레그램 통합, 2026-10-31 간결판; 2026-11-01 PENTARCH 시장 위험 국면 표시 — docs/118 W2; 2026-11-02 VRP 보험료 — docs/121 V1; 2026-11-02 연금 전략 v1.0 = IC 연금형 v2.0(G1S) + PENTARCH v19.0; 같은 날 v1.1 = IC v2.1(I3 히스테리시스) + PENTARCH v19.1(P7 글로벌 패닉), v1.2 = IC v2.2(A2 디스인플레이션 칸)) — IC 연금형 35% + PENTARCH 비레버리지 65%(1위 35 · 2위 30) 합계 목표와 그 국내 ETF(2026-10-31)를 한국 장 시작 전에 텔레그램으로 보낸다(2026-10-30).
 
 평일 08:00 KST cron. 미국 장 마감(서머타임 05:00 / 표준시 06:00 KST) 뒤, PENTARCH 연금 신호(06:40 재수집 실행)가 끝난 뒤.
 - 연금은 월 1회 매매: 미국 월말 거래일 종가로 정한 비중을 다음 한 달 들고 간다.
@@ -164,6 +164,10 @@ def build_message() -> str:
     if gp.get("on"):
         blk = "·".join(name(k) for k in gp.get("blocked", [])) or "없음"
         notes.append(f"글로벌 동조화 패닉(흡수비율 {gp.get('absorption'):.2f} > 과거 90분위) → 월말에 3개월 손실 자산 제외(지금 해당: {blk})")
+    if ic_held.get("disinflation"):
+        notes.append(f"IC 디스인플레이션(A2): 물가 {ic_held.get('cpi_yoy'):.1f}% 로 높지만 6개월 전보다 낮음 → 인플레 칸 대신 나스닥·국채")
+    elif ic_held.get("disinflation") is None:
+        notes.append("⚠️ 헤드라인 CPI 수집 실패·지연 → A2 디스인플레이션 판정 꺼짐(v2.1 규칙)")
     band = ic_held.get("infl_band")
     if band and ic_held.get("bei") is not None and band[0] <= ic_held["bei"] <= band[1]:
         notes.append(f"BEI {ic_held['bei']:.2f}% 가 인플레 판정 띠({band[0]}~{band[1]}%) 안 → 직전 판정 유지(I3)")

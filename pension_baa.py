@@ -147,7 +147,7 @@ def stats(r: pd.Series) -> dict:
             "Sharpe": r.mean() / r.std() * np.sqrt(12), "worst": r.min(), "mult": eq.iloc[-1]}
 
 
-IC_VERSION = "IC 연금형 v2.1"   # v1.0 연금형(무레버·무보험·다음 날 체결, 10-30) → v1.1 T4(10-31) → v2.0 G1S(11-02) → v2.1 I3 인플레 히스테리시스 2.15/1.85(11-02, docs/127) + I1 성장 칸 실제 보유 나스닥100(QQQ) 기준 백테스트(docs/126)
+IC_VERSION = "IC 연금형 v2.2"   # v1.0 연금형(무레버·무보험·다음 날 체결, 10-30) → v1.1 T4(10-31) → v2.0 G1S(11-02) → v2.1 I3 인플레 히스테리시스 2.15/1.85(11-02, docs/127) + I1 성장 칸 실제 보유 나스닥100(QQQ) 기준 백테스트(docs/126) → v2.2 A2 디스인플레이션 칸(11-02, docs/129)
 STRESS_PATH = "/home/mikey/pentarch/output/stress_path.parquet"     # pentarch pension_signal(06:40)이 매일 갱신
 
 
@@ -196,14 +196,54 @@ def inflation_hysteresis(prices, t5yie, on: float = INFL_ON, off: float = INFL_O
     return pd.Series(level, index=mom.index) & mom.fillna(False).astype(bool)
 
 
+DISINFL_LEVEL, DISINFL_LOOKBACK = 3.0, 6   # pentarch docs/129 A2: 헤드라인 CPI 전년비 ≥ 3% ∧ 6개월 전보다 낮음 = 디스인플레이션
+CPI_LAG = pd.DateOffset(months=1, days=24)  # 관측월 m 은 m+1 월 25일부터 사용(백테스트 PIT 발표일 22~24일과 같은 월말 판정)
+CPI_STALE_DAYS = 80                         # 마지막 사용 가능 관측이 이보다 오래되면 A2 를 쓰지 않는다
+
+
+@functools.lru_cache(maxsize=1)
+def _headline_cpi() -> pd.Series | None:
+    """헤드라인 CPI(비계절조정 CPIAUCNS) — 사용 가능일 기준 인덱스. 실패하면 None (→ A2 끔 = v2.1 규칙)."""
+    try:
+        c = pd.read_csv("https://fred.stlouisfed.org/graph/fredgraph.csv?id=CPIAUCNS", na_values=".").dropna()
+        return c.set_index(pd.to_datetime(c["observation_date"]) + CPI_LAG)["CPIAUCNS"].astype(float)
+    except Exception as e:
+        print(f"⚠️ 헤드라인 CPI(CPIAUCNS) 수집 실패 — A2 디스인플레이션 판정 끔: {e}")
+        return None
+
+
+def disinflation_series(index: pd.DatetimeIndex) -> pd.Series | None:
+    """docs/129 A2 — 일별 디스인플레이션 국면(하루 늦게). CPI 가 없거나 오래됐으면 None."""
+    c = _headline_cpi()
+    if c is None or len(c) < 24 or c.index[-1] < index[-1] - pd.Timedelta(days=CPI_STALE_DAYS):
+        if c is not None:
+            print(f"⚠️ 헤드라인 CPI 가 오래됨(마지막 사용 가능 {c.index[-1].date()}) — A2 끔")
+        return None
+    yoy = (c / c.shift(12) - 1) * 100
+    flag = (yoy >= DISINFL_LEVEL) & (yoy < yoy.shift(DISINFL_LOOKBACK))
+    return flag.reindex(flag.index.union(index)).ffill().reindex(index).shift(1).fillna(False).astype(bool)
+
+
+def cpi_yoy_now(d) -> float | None:
+    c = _headline_cpi()
+    if c is None:
+        return None
+    yoy = (c / c.shift(12) - 1) * 100
+    return float(yoy.asof(d)) if yoy.loc[:d].notna().any() else None
+
+
 def ic_pension_weights(prices, t5yie, vix, baa10y) -> dict:
-    """IC 연금형 v2.1 오늘 기준 목표 비중(레버리지 없음, 상시 보험 없음 — 2026-10-30 사용자 결정: 계좌가 복잡해진다).
+    """IC 연금형 v2.2 오늘 기준 목표 비중(레버리지 없음, 상시 보험 없음 — 2026-10-30 사용자 결정: 계좌가 복잡해진다).
     성장 = S&P > 200일선 ∨ G1S 고용 유예(docs/123) ∨ T4 신용 확인 재진입(docs/112)."""
     import fng_engine as F
     idx = F.compute_synthetic_fng_series(prices, baa10y, vix).dropna()
     g, _, below = F._macro_series(prices, t5yie)
     inf = inflation_hysteresis(prices, t5yie)          # docs/127 I3
+    dis = disinflation_series(inf.index)                # docs/129 A2: 높지만 하락하는 물가면 인플레 칸을 쓰지 않는다
+    if dis is not None:
+        inf = inf & ~dis
     d = idx.index[-1]
+    disinfl = None if dis is None else bool(dis.asof(d))
     exposure = 0.5 if idx.loc[d] > 85 else 1.0
     reentry = reentry_ok(prices, baa10y).asof(d)
     hold = (not bool(g.loc[d])) and employment_hold(prices, d)
@@ -211,6 +251,7 @@ def ic_pension_weights(prices, t5yie, vix, baa10y) -> dict:
     w = F.confirmed_weights(growth, bool(inf.loc[d]), bool(below.loc[d]), exposure, sleeve={})
     return {"date": d, "index": float(idx.loc[d]), "growth_on": growth, "inflation_on": bool(inf.loc[d]),
             "bei": round(float(t5yie.dropna().iloc[-1]), 2), "infl_band": [INFL_OFF, INFL_ON],
+            "disinflation": disinfl, "cpi_yoy": (round(cpi_yoy_now(d), 2) if cpi_yoy_now(d) is not None else None),
             "reentry": bool(reentry) and not bool(g.loc[d]) and not hold, "employment_hold": hold,
             "version": IC_VERSION, **w}
 
