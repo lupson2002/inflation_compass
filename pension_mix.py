@@ -2,7 +2,7 @@
 
 - IC 연금형: 4국면 섹터 칸 100% + 침체 국면 채권방어 + IC 위험선호 지수 > 85 면 0.5배(나머지 단기채).
   상시 보험(금 10·BIL 5)은 연금에서 뺐다(2026-10-30 사용자 결정: 계좌가 복잡해진다). 공포 2배도 없다(빌리지 않음).
-- PENTARCH 비레버리지: /home/mikey/pentarch 운용 모델 v18.6 신호, 매력도 1위 35 · 2위 30(슬리브 안 53.8/46.2, pentarch docs/101).
+- PENTARCH 비레버리지: /home/mikey/pentarch 운용 모델 v19.0 신호(연금 전략 v1.0), 매력도 1위 35 · 2위 30(슬리브 안 53.8/46.2, pentarch docs/101).
   pentarch 크론(06:40 scripts/run_pension.sh, 데이터 재수집)이 output/pension_target.json 으로 낸다. 이 모듈은 그 파일을 읽기만 한다.
   Streamlit Cloud 처럼 그 경로가 없으면 data/pentarch_pension_target.json(마지막 로컬 사본)을 읽는다.
 
