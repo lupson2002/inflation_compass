@@ -1,4 +1,4 @@
-"""연금 주문서(IC 일일 텔레그램 통합, 2026-10-31 간결판; 2026-11-01 PENTARCH 시장 위험 국면 표시 — docs/118 W2) — IC 연금형 35% + PENTARCH 비레버리지 65%(1위 35 · 2위 30) 합계 목표와 그 국내 ETF(2026-10-31)를 한국 장 시작 전에 텔레그램으로 보낸다(2026-10-30).
+"""연금 주문서(IC 일일 텔레그램 통합, 2026-10-31 간결판; 2026-11-01 PENTARCH 시장 위험 국면 표시 — docs/118 W2; 2026-11-02 VRP 보험료 — docs/121 V1) — IC 연금형 35% + PENTARCH 비레버리지 65%(1위 35 · 2위 30) 합계 목표와 그 국내 ETF(2026-10-31)를 한국 장 시작 전에 텔레그램으로 보낸다(2026-10-30).
 
 평일 08:00 KST cron. 미국 장 마감(서머타임 05:00 / 표준시 06:00 KST) 뒤, PENTARCH 연금 신호(06:40 재수집 실행)가 끝난 뒤.
 - 연금은 월 1회 매매: 미국 월말 거래일 종가로 정한 비중을 다음 한 달 들고 간다.
@@ -136,8 +136,14 @@ def build_message() -> str:
             top = f"{k} {v*100:.0f}% · {val} "
         lines.append(f"PENTARCH: {top}→ {'·'.join(name(k) for k in p_t)}")
         rr = pent.get("risk_regime")
-        if rr:
-            lines.append(f"시장 위험: {'🔴 스트레스' if rr['on'] else '평온'}")
+        vr = pent.get("vrp")
+        if rr or vr:
+            parts = []
+            if rr:
+                parts.append(f"시장 위험: {'🔴 스트레스' if rr['on'] else '평온'}")
+            if vr:                                              # docs/121 V1 — 옵션 보험료(VRP) z
+                parts.append("보험료 " + _band(vr["z"], (-1.0, 1.0), ("낮음(주식 감점)", "보통", "높음(주식 가점)")))
+            lines.append(" · ".join(parts))
 
     # 4) 알아둘 것(있을 때만)
     notes = []
