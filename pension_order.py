@@ -52,7 +52,7 @@ def relative_gap(prices, t5yie, vix, hy, pent: dict | None, asof) -> dict | None
     rows = []
     for a, b in zip(ends[:-1], ends[1:]):
         w = PM.ic_weights_asof(prices, t5yie, vix, hy, a)["final_weights"]
-        ic_r = sum(v * (prices[k].asof(b) / prices[k].asof(a) - 1) for k, v in w.items() if k in prices)
+        ic_r = sum(v * (prices[k].asof(b) / prices[k].asof(a) - 1) for k, v in w.items() if k in prices)   # 성장 칸은 XLK 가격(이 가격 자료엔 QQQ 없음, 경고용 근사)
         p_r = rm.get(str(b.to_period("M")))
         if p_r is None:
             return None
@@ -68,6 +68,7 @@ def relative_gap(prices, t5yie, vix, hy, pent: dict | None, asof) -> dict | None
 def _merge(ic: dict, pent: dict | None) -> dict:
     out: dict[str, float] = {}
     for k, w in ic.items():
+        k = PM.IC_HOLD.get(k, k)                              # I1: IC 성장 칸 XLK 는 실제로 나스닥100(QQQ, 133690)을 산다
         out[k] = out.get(k, 0.0) + PM.IC_WEIGHT * w
     for k, w in (pent or {}).items():
         out[k] = out.get(k, 0.0) + PM.PENT_WEIGHT * w
@@ -122,7 +123,7 @@ def build_message() -> str:
 
     # 3) 경제를 어떻게 보나
     g, i = ic_held.get("growth_on"), ic_held.get("inflation_on")
-    cell = {(True, True): "에너지", (True, False): "기술주", (False, True): "유틸리티", (False, False): "국채"}[(bool(g), bool(i))]
+    cell = {(True, True): "에너지", (True, False): "나스닥100", (False, True): "유틸리티", (False, False): "국채"}[(bool(g), bool(i))]
     lines += ["", "🧭 <b>경제 판단</b>",
               f"IC: 성장{'↑' if g else '↓'} 인플레{'↑' if i else '↓'} → {cell}"]
     if pent is None:

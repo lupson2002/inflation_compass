@@ -147,7 +147,7 @@ def stats(r: pd.Series) -> dict:
             "Sharpe": r.mean() / r.std() * np.sqrt(12), "worst": r.min(), "mult": eq.iloc[-1]}
 
 
-IC_VERSION = "IC 연금형 v2.1"   # v1.0 연금형(무레버·무보험·다음 날 체결, 10-30) → v1.1 T4(10-31) → v2.0 G1S(11-02) → v2.1 I3 인플레 히스테리시스 2.15/1.85(11-02, docs/127)
+IC_VERSION = "IC 연금형 v2.1"   # v1.0 연금형(무레버·무보험·다음 날 체결, 10-30) → v1.1 T4(10-31) → v2.0 G1S(11-02) → v2.1 I3 인플레 히스테리시스 2.15/1.85(11-02, docs/127) + I1 성장 칸 실제 보유 나스닥100(QQQ) 기준 백테스트(docs/126)
 STRESS_PATH = "/home/mikey/pentarch/output/stress_path.parquet"     # pentarch pension_signal(06:40)이 매일 갱신
 
 
