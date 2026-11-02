@@ -16,6 +16,8 @@ BAA-G4    = 켈러 Bold Asset Allocation, 공격형 G4 (Keller 2022 원본 규�
 """
 from __future__ import annotations
 
+import functools
+
 import numpy as np
 import pandas as pd
 import yfinance as yf
@@ -145,18 +147,54 @@ def stats(r: pd.Series) -> dict:
             "Sharpe": r.mean() / r.std() * np.sqrt(12), "worst": r.min(), "mult": eq.iloc[-1]}
 
 
+IC_VERSION = "IC 연금형 v2.0"   # v1.0 연금형(무레버·무보험·다음 날 체결, 10-30) → v1.1 T4(10-31) → v2.0 G1S(11-02)
+STRESS_PATH = "/home/mikey/pentarch/output/stress_path.parquet"     # pentarch pension_signal(06:40)이 매일 갱신
+
+
+@functools.lru_cache(maxsize=1)
+def _g1s_inputs() -> tuple[pd.Series | None, pd.Series | None]:
+    """(실업률 일별 — 관측월 다음 달 7일부터 사용, 스트레스 일별). 실패하면 None (→ G1S 고용 유예를 쓰지 않음 = v1.1 규칙)."""
+    try:
+        u = pd.read_csv("https://fred.stlouisfed.org/graph/fredgraph.csv?id=UNRATE", na_values=".").dropna()
+        un = u.set_index(pd.to_datetime(u["observation_date"]) + pd.DateOffset(months=1, days=7))["UNRATE"].astype(float)
+    except Exception as e:                                          # 네트워크 실패는 경고만, 규칙은 보수 쪽으로
+        print(f"⚠️ 실업률(UNRATE) 수집 실패 — G1S 고용 유예 끔: {e}")
+        un = None
+    try:
+        st = pd.read_parquet(STRESS_PATH)["stress"].astype(bool)
+    except Exception as e:
+        print(f"⚠️ 스트레스 경로 없음 — G1S 고용 유예 끔: {e}")
+        st = None
+    return un, st
+
+
+def employment_hold(prices, d) -> bool:
+    """pentarch docs/123 G1S — 실업률(하루 늦게) ≤ 그 252거래일 평균 ∧ d 가 W2 스트레스 국면이 아님."""
+    un, st = _g1s_inputs()
+    if un is None or st is None:
+        return False
+    if st.index[-1] < d - pd.Timedelta(days=7):                     # 스트레스 경로가 오래됐으면 쓰지 않는다
+        return False
+    ud = un.reindex(un.index.union(prices.index)).ffill().reindex(prices.index).shift(1)
+    ok = ud <= ud.rolling(252, min_periods=200).mean()
+    return bool(ok.asof(d)) and not bool(st.asof(d))
+
+
 def ic_pension_weights(prices, t5yie, vix, baa10y) -> dict:
-    """IC 연금형 오늘 기준 목표 비중(레버리지 없음, 상시 보험 없음 — 2026-10-30 사용자 결정: 계좌가 복잡해진다)."""
+    """IC 연금형 v2.0 오늘 기준 목표 비중(레버리지 없음, 상시 보험 없음 — 2026-10-30 사용자 결정: 계좌가 복잡해진다).
+    성장 = S&P > 200일선 ∨ G1S 고용 유예(docs/123) ∨ T4 신용 확인 재진입(docs/112)."""
     import fng_engine as F
     idx = F.compute_synthetic_fng_series(prices, baa10y, vix).dropna()
     g, inf, below = F._macro_series(prices, t5yie)
     d = idx.index[-1]
     exposure = 0.5 if idx.loc[d] > 85 else 1.0
     reentry = reentry_ok(prices, baa10y).asof(d)
-    growth = bool(g.loc[d]) or bool(reentry)              # pentarch docs/112 T4: 신용 확인 조기 재진입
+    hold = (not bool(g.loc[d])) and employment_hold(prices, d)
+    growth = bool(g.loc[d]) or hold or bool(reentry)
     w = F.confirmed_weights(growth, bool(inf.loc[d]), bool(below.loc[d]), exposure, sleeve={})
     return {"date": d, "index": float(idx.loc[d]), "growth_on": growth, "inflation_on": bool(inf.loc[d]),
-            "reentry": bool(reentry) and not bool(g.loc[d]), **w}
+            "reentry": bool(reentry) and not bool(g.loc[d]) and not hold, "employment_hold": hold,
+            "version": IC_VERSION, **w}
 
 
 def reentry_ok(prices, baa10y) -> pd.Series:
