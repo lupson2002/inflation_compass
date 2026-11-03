@@ -149,6 +149,13 @@ def build_message() -> str:
                 parts.append("보험료 " + _band(vr["z"], (-1.0, 1.0), ("낮음(주식 감점)", "보통", "높음(주식 가점)")))
             lines.append(" · ".join(parts))
 
+    # 3-1) 두 값: 이번 달 보유(월말 결정) vs 오늘 종가로 판단했다면(매매 안 함, 다음 월말 미리보기) — 2026-11-03 사용자 요청
+    if not trade_today and pent is not None and pent.get("if_today"):
+        today_total = _merge(ic_now["final_weights"], pent["if_today"])
+        diff = {k for k in set(today_total) | set(total) if abs(today_total.get(k, 0) - total.get(k, 0)) > 0.005}
+        prev_line = " · ".join(f"{name(k)} {dt._pct(v)}" for k, v in sorted(today_total.items(), key=lambda kv: -kv[1]) if v > 1e-6)
+        lines += ["", "🔭 <b>오늘 판단이면</b>(매매 안 함)" + (" — 월말 결정과 같음" if not diff else ""), prev_line]
+
     # 4) 알아둘 것(있을 때만)
     notes = []
     vl = pent.get("value_layer") if pent else None
