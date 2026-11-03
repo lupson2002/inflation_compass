@@ -9,7 +9,7 @@ import yfinance as yf
 DATA_DIR = Path(__file__).parent / "data"
 DB_PATH = DATA_DIR / "inflation_compass.db"
 
-TICKERS = ["SPY", "XLE", "XLK", "XLU", "XLP", "IEF", "XLI", "XLF", "XLB", "XLV"]
+TICKERS = ["SPY", "XLE", "XLK", "XLU", "XLP", "IEF", "XLI", "XLF", "XLB", "XLV", "SHY", "QQQ"]   # SHY·QQQ: 실제 보유 수익 계산용(2026-11-04)
 FRED_SERIES = "T5YIE"
 
 SCHEMA = """

@@ -14,14 +14,14 @@ import html
 import sys
 
 import pandas as pd
-from pandas.tseries.holiday import USFederalHolidayCalendar
-from pandas.tseries.offsets import CustomBusinessMonthEnd
 
 import backtest
 import daily_telegram as dt
+import pension_baa as P
 import pension_mix as PM
+from nyse_calendar import NYSE_BDAY, NYSE_BME
 
-US_BME = CustomBusinessMonthEnd(calendar=USFederalHolidayCalendar())
+US_BME = NYSE_BME      # 2026-11-04: 연방 공휴일 달력은 성금요일·12-31 대체휴일 월말을 틀린다(1995~ 8건, 다음 2027-12-31)
 
 
 def _macro(prices: pd.DataFrame) -> tuple[pd.Series, pd.Series]:
@@ -35,6 +35,36 @@ def _macro(prices: pd.DataFrame) -> tuple[pd.Series, pd.Series]:
 def _month_ends(idx: pd.DatetimeIndex) -> pd.DatetimeIndex:
     s = idx.to_series()
     return pd.DatetimeIndex(s.groupby(s.index.to_period("M")).max().values)
+
+
+def last_expected_close(now_et: pd.Timestamp) -> pd.Timestamp:
+    """지금(미국 동부) 기준으로 끝나 있어야 할 마지막 NYSE 거래일."""
+    day = now_et.tz_localize(None).normalize()
+    if (now_et.hour, now_et.minute) < (16, 15):
+        day -= pd.Timedelta(days=1)
+    return NYSE_BDAY.rollback(day)
+
+
+def freshness_alerts(asof: pd.Timestamp, expected: pd.Timestamp, pent: dict | None, stress_end: pd.Timestamp | None) -> list[str]:
+    """두 슬리브가 같은 날 종가로 계산됐는지 검사(pentarch docs/138). 어긋나면 주문서 맨 위에 경고."""
+    out = []
+    if asof < expected:
+        out.append(f"🚨 IC 가격이 {asof:%m-%d} 에 멈춤(기대 {expected:%m-%d}) — 월말 판단을 놓쳤을 수 있음, 매매 보류 후 재확인")
+    if pent is None:
+        out.append("🚨 PENTARCH 신호 없음 — 매매 보류 후 재확인")
+    elif pd.Timestamp(pent["data_asof"]) < asof:
+        out.append(f"🚨 PENTARCH 신호가 {pent['data_asof']} 기준(IC {asof:%m-%d}) — 06:40 실행 실패 가능, 매매 보류 후 재확인")
+    if stress_end is not None and stress_end < asof:
+        out.append(f"🚨 스트레스 경로가 {stress_end:%m-%d} 까지 — IC 고용 유예 판정이 늦은 자료 기준, 재확인")
+    return out
+
+
+def _stress_end() -> pd.Timestamp | None:
+    try:
+        return pd.read_parquet(P.STRESS_PATH).index[-1]
+    except Exception as e:
+        print(f"⚠️ 스트레스 경로 읽기 실패: {e}")
+        return None
 
 
 def _band(v: float, cuts: tuple, words: tuple) -> str:
@@ -52,7 +82,8 @@ def relative_gap(prices, t5yie, vix, hy, pent: dict | None, asof) -> dict | None
     rows = []
     for a, b in zip(ends[:-1], ends[1:]):
         w = PM.ic_weights_asof(prices, t5yie, vix, hy, a)["final_weights"]
-        ic_r = sum(v * (prices[k].asof(b) / prices[k].asof(a) - 1) for k, v in w.items() if k in prices)   # 성장 칸은 XLK 가격(이 가격 자료엔 QQQ 없음, 경고용 근사)
+        held = {PM.IC_HOLD.get(k, k): v for k, v in w.items()}          # 성장 칸은 실제 보유인 QQQ 수익으로(2026-11-04 XLK 근사·SHY 0% 수정)
+        ic_r = sum(v * (prices[k].asof(b) / prices[k].asof(a) - 1) for k, v in held.items())
         p_r = rm.get(str(b.to_period("M")))
         if p_r is None:
             return None
@@ -96,7 +127,8 @@ def build_message() -> str:
     total = _merge(ic_held["final_weights"], p_t)
     name = lambda k: dt.SHORT_KR.get(k, k)                              # noqa: E731
     kst = pd.Timestamp.now(tz="Asia/Seoul")
-    lines = [f"🏦 <b>{PM.PENSION_VERSION}</b> {kst:%m-%d}({'월화수목금토일'[kst.weekday()]}) · 미국 {asof:%m-%d} 종가", ""]
+    alerts = freshness_alerts(asof, last_expected_close(now_et), pent, _stress_end())
+    lines = [f"🏦 <b>{PM.PENSION_VERSION}</b> {kst:%m-%d}({'월화수목금토일'[kst.weekday()]}) · 미국 {asof:%m-%d} 종가", *alerts, ""]
 
     # 1) 오늘 할 일
     if trade_today:
@@ -110,8 +142,6 @@ def build_message() -> str:
                       *[f"   {name(k)} {dt._pct(x)} → <b>{dt._pct(y)}</b>" for k, x, y in moves]]
         else:
             lines += ["✅ 월말 판단 끝 · <b>바꿀 것 없음</b>"]
-        if pent and pent.get("data_asof") != f"{asof:%Y-%m-%d}":
-            lines += [f"⚠️ PENTARCH 신호가 {pent.get('data_asof')} 기준 — 매매 보류 후 재확인"]
     else:
         lines += [f"😴 오늘 매매 없음 · 다음 판단 {US_BME.rollforward(asof):%m-%d} 종가"]
 
