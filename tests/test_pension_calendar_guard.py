@@ -37,3 +37,25 @@ def test_freshness_alerts():
     assert "PENTARCH 신호가" in O.freshness_alerts(a, e, {"data_asof": "2026-11-02"}, a)[0]
     assert "PENTARCH 신호 없음" in O.freshness_alerts(a, e, None, a)[0]
     assert "스트레스" in O.freshness_alerts(a, e, ok, pd.Timestamp("2026-11-02"))[0]
+
+
+def test_pent_before_uses_pre_decision_target_on_month_end():
+    held = pd.Timestamp("2026-11-30")
+    pent = {"decision_day": True, "data_asof": "2026-11-30", "effective_since": "2026-11-30",
+            "target": {"SPY": .5385, "GLD": .4615}, "target_before_decision": {"BIL": .5385, "GUNR": .4615},
+            "prev_target": {"BIL": .5385, "GUNR": .4615}}
+    assert O.pent_before(pent, held) == {"BIL": .5385, "GUNR": .4615}
+
+
+def test_pent_before_unchanged_and_non_decision():
+    held = pd.Timestamp("2026-11-30")
+    same = {"decision_day": True, "data_asof": "2026-11-30", "target": {"BIL": 1.0}, "target_before_decision": {"BIL": 1.0}}
+    assert O.pent_before(same, held) == {"BIL": 1.0}
+    stale = {"decision_day": False, "data_asof": "2026-11-27", "target": {"GLD": 1.0}}
+    assert O.pent_before(stale, held) == {"GLD": 1.0}
+    assert O.pent_before(None, held) is None
+
+
+def test_missing_stress_file_alerts():
+    a = pd.Timestamp("2026-11-03")
+    assert any("스트레스 경로 파일 없음" in x for x in O.freshness_alerts(a, a, {"data_asof": "2026-11-03"}, None))

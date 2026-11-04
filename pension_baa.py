@@ -151,21 +151,45 @@ IC_VERSION = "IC 연금형 v2.2"   # v1.0 연금형(무레버·무보험·다음
 STRESS_PATH = "/home/mikey/pentarch/output/stress_path.parquet"     # pentarch pension_signal(06:40)이 매일 갱신
 
 
+MACRO_PIT = "/home/mikey/pentarch/data/point_in_time/macro_pit.parquet"   # ALFRED 최초 발표값(발표일 기준 일별) — 연구와 같은 입력
+
+
 @functools.lru_cache(maxsize=1)
 def _g1s_inputs() -> tuple[pd.Series | None, pd.Series | None]:
-    """(실업률 일별 — 관측월 다음 달 7일부터 사용, 스트레스 일별). 실패하면 None (→ G1S 고용 유예를 쓰지 않음 = v1.1 규칙)."""
+    """(실업률 일별 — 당시 발표값, 스트레스 일별). 실패하면 None (→ 주문서가 매매 보류, pentarch docs/139 F06).
+    2026-11-04 docs/139 F05: FRED 최신 수정값 + 고정 시차 대신 pentarch PIT(최초 발표값·발표일) 를 쓴다(연구 ic122_inputs 와 같은 원천)."""
     try:
-        u = pd.read_csv("https://fred.stlouisfed.org/graph/fredgraph.csv?id=UNRATE", na_values=".").dropna()
-        un = u.set_index(pd.to_datetime(u["observation_date"]) + pd.DateOffset(months=1, days=7))["UNRATE"].astype(float)
-    except Exception as e:                                          # 네트워크 실패는 경고만, 규칙은 보수 쪽으로
-        print(f"⚠️ 실업률(UNRATE) 수집 실패 — G1S 고용 유예 끔: {e}")
+        un = pd.read_parquet(MACRO_PIT, columns=["UNRATE"])["UNRATE"].astype(float).dropna()
+    except Exception as e:
+        print(f"⚠️ 실업률(PIT UNRATE) 읽기 실패 — G1S 판정 불가: {e}")
         un = None
     try:
         st = pd.read_parquet(STRESS_PATH)["stress"].astype(bool)
     except Exception as e:
-        print(f"⚠️ 스트레스 경로 없음 — G1S 고용 유예 끔: {e}")
+        print(f"⚠️ 스트레스 경로 없음 — G1S 판정 불가: {e}")
         st = None
     return un, st
+
+
+def input_problems(d) -> list[str]:
+    """IC v2.2 를 그대로 계산할 수 없게 만드는 입력 문제(docs/139 F06). 비어 있으면 정상."""
+    d = pd.Timestamp(d)
+    out = []
+    un, st = _g1s_inputs()
+    if un is None:
+        out.append("실업률(PIT) 없음 → G1S 계산 불가")
+    elif un.index[-1] < d - pd.Timedelta(days=7):
+        out.append(f"실업률(PIT) 파일이 {un.index[-1]:%m-%d} 에 멈춤 → G1S 계산 불가")
+    if st is None:
+        out.append("스트레스 경로 없음 → G1S 계산 불가")
+    elif st.index[-1] < d - pd.Timedelta(days=7):
+        out.append(f"스트레스 경로가 {st.index[-1]:%m-%d} 에 멈춤 → G1S 계산 불가")
+    c = _headline_cpi()
+    if c is None:
+        out.append("헤드라인 CPI 수집 실패 → A2 계산 불가")
+    elif c.index[-1] < d - pd.Timedelta(days=CPI_STALE_DAYS):
+        out.append(f"헤드라인 CPI 가 오래됨({c.index[-1]:%m-%d}) → A2 계산 불가")
+    return out
 
 
 def employment_hold(prices, d) -> bool:
@@ -173,7 +197,7 @@ def employment_hold(prices, d) -> bool:
     un, st = _g1s_inputs()
     if un is None or st is None:
         return False
-    if st.index[-1] < d - pd.Timedelta(days=7):                     # 스트레스 경로가 오래됐으면 쓰지 않는다
+    if st.index[-1] < d - pd.Timedelta(days=7) or un.index[-1] < d - pd.Timedelta(days=7):   # 오래됐으면 쓰지 않는다(주문서는 보류)
         return False
     ud = un.reindex(un.index.union(prices.index)).ffill().reindex(prices.index).shift(1)
     ok = ud <= ud.rolling(252, min_periods=200).mean()
@@ -236,9 +260,12 @@ def ic_pension_weights(prices, t5yie, vix, baa10y) -> dict:
     """IC 연금형 v2.2 오늘 기준 목표 비중(레버리지 없음, 상시 보험 없음 — 2026-10-30 사용자 결정: 계좌가 복잡해진다).
     성장 = S&P > 200일선 ∨ G1S 고용 유예(docs/123) ∨ T4 신용 확인 재진입(docs/112)."""
     import fng_engine as F
-    idx = F.compute_synthetic_fng_series(prices, baa10y, vix).dropna()
-    g, _, below = F._macro_series(prices, t5yie)
-    inf = inflation_hysteresis(prices, t5yie)          # docs/127 I3
+    # docs/139 F05: FRED 일별(BEI·BAA10Y)은 연구(compute_signals fred_lag=1)와 같이 하루 늦춰 쓴다. T4 는 reentry_ok 안에서 늦춘다.
+    t5l = t5yie.reindex(prices.index).shift(1)
+    baal = baa10y.reindex(prices.index).shift(1)
+    idx = F.compute_synthetic_fng_series(prices, baal, vix).dropna()
+    g, _, below = F._macro_series(prices, t5l)
+    inf = inflation_hysteresis(prices, t5l)            # docs/127 I3
     dis = disinflation_series(inf.index)                # docs/129 A2: 높지만 하락하는 물가면 인플레 칸을 쓰지 않는다
     if dis is not None:
         inf = inf & ~dis
@@ -250,7 +277,7 @@ def ic_pension_weights(prices, t5yie, vix, baa10y) -> dict:
     growth = bool(g.loc[d]) or hold or bool(reentry)
     w = F.confirmed_weights(growth, bool(inf.loc[d]), bool(below.loc[d]), exposure, sleeve={})
     return {"date": d, "index": float(idx.loc[d]), "growth_on": growth, "inflation_on": bool(inf.loc[d]),
-            "bei": round(float(t5yie.dropna().iloc[-1]), 2), "infl_band": [INFL_OFF, INFL_ON],
+            "bei": round(float(t5l.dropna().iloc[-1]), 2), "infl_band": [INFL_OFF, INFL_ON],
             "disinflation": disinfl, "cpi_yoy": (round(cpi_yoy_now(d), 2) if cpi_yoy_now(d) is not None else None),
             "reentry": bool(reentry) and not bool(g.loc[d]) and not hold, "employment_hold": hold,
             "version": IC_VERSION, **w}

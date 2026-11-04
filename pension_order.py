@@ -54,9 +54,22 @@ def freshness_alerts(asof: pd.Timestamp, expected: pd.Timestamp, pent: dict | No
         out.append("🚨 PENTARCH 신호 없음 — 매매 보류 후 재확인")
     elif pd.Timestamp(pent["data_asof"]) < asof:
         out.append(f"🚨 PENTARCH 신호가 {pent['data_asof']} 기준(IC {asof:%m-%d}) — 06:40 실행 실패 가능, 매매 보류 후 재확인")
-    if stress_end is not None and stress_end < asof:
+    if stress_end is None:                                          # docs/139 F06: 없으면 경고도 없던 구멍
+        out.append("🚨 스트레스 경로 파일 없음 — IC 고용 유예(G1S) 판정 불가, 매매 보류 후 재확인")
+    elif stress_end < asof:
         out.append(f"🚨 스트레스 경로가 {stress_end:%m-%d} 까지 — IC 고용 유예 판정이 늦은 자료 기준, 재확인")
     return out
+
+
+def pent_before(pent: dict | None, held_d: pd.Timestamp) -> dict | None:
+    """월말 판단일 아침, PENTARCH 가 그 판단 직전까지 들고 있던 목표(docs/139 F04).
+    예전 조건(effective_since > held_d)은 새 목표의 효력일이 판단일 자체(== held_d)라 늘 거짓 → 바뀐 것을 '바꿀 것 없음'으로 냈다."""
+    if not pent:
+        return None
+    if pent.get("decision_day") and pent.get("data_asof") == f"{held_d:%Y-%m-%d}":
+        b = pent.get("target_before_decision")
+        return b if b is not None else pent.get("prev_target")
+    return pent.get("target")
 
 
 def _stress_end() -> pd.Timestamp | None:
@@ -128,13 +141,14 @@ def build_message() -> str:
     name = lambda k: dt.SHORT_KR.get(k, k)                              # noqa: E731
     kst = pd.Timestamp.now(tz="Asia/Seoul")
     alerts = freshness_alerts(asof, last_expected_close(now_et), pent, _stress_end())
+    alerts += [f"🚨 {x} — IC 가 v2.2 와 다른 규칙이 됨, 매매 보류" for x in P.input_problems(asof)]   # docs/139 F06
     lines = [f"🏦 <b>{PM.PENSION_VERSION}</b> {kst:%m-%d}({'월화수목금토일'[kst.weekday()]}) · 미국 {asof:%m-%d} 종가", *alerts, ""]
 
     # 1) 오늘 할 일
-    if trade_today:
-        p_new = bool(pent) and pd.Timestamp(pent["effective_since"]) > held_d     # PENTARCH 도 이번 월말에 새로 정했나
-        p_before = (pent.get("prev_target") if p_new else p_t) if pent else None
-        before = _merge(ic_prev["final_weights"], p_before)
+    if trade_today and alerts:                                          # docs/139 F06: 자료가 온전하지 않으면 '교체'를 내지 않는다
+        lines += ["⛔ <b>매매 보류</b> — 위 경고를 해결하고 다시 실행한 뒤 교체(한국 휴장이면 다음 거래일)"]
+    elif trade_today:
+        before = _merge(ic_prev["final_weights"], pent_before(pent, held_d))
         moves = [(k, before.get(k, 0.0), total.get(k, 0.0)) for k in sorted(set(total) | set(before), key=lambda x: -total.get(x, 0))
                  if abs(total.get(k, 0) - before.get(k, 0)) > 1e-6]
         if moves:
