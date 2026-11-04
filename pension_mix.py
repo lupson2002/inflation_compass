@@ -28,7 +28,8 @@ STALE_DAYS = 5
 # 2026-10-31 pentarch docs/103 D4(276000) + docs/107 B5 + docs/112 T4 + docs/116 K1(KS 는 원래 DBC 선물로) 반영
 IC_HOLD = {"XLK": "QQQ"}   # pentarch docs/126 I1: IC 성장 칸 판정 이름은 XLK, 실제 보유·백테스트는 나스닥100(QQQ, 133690)
 PENSION_VERSION = "연금 전략 v1.2"   # 2026-11-02: IC 연금형 v2.2 35% + PENTARCH v19.1 65% (v1.1 = IC v2.1) (v1.0 = IC v2.0 + PENTARCH v19.0), 1위 35·2위 30, 국내 ETF
-BACKTEST = {"기간": "2008-02 ~ 2026-10 (월말, 다음 날 체결)", "CAGR": 0.191, "MDD": -0.117,
+BACKTEST = {"기간": "2008-02 ~ 2026-10 (월말, 다음 날 체결)", "CAGR": 0.191, "MDD": -0.117,   # MDD 는 월말 기준 — 일별 −16.8%(2011-08), pentarch docs/139 F02
+            "MDD 일별": -0.168,
             "IC 단독": (0.225, -0.179), "PENTARCH 단독": (0.169, -0.178),   # 연금 v1.2: IC v2.2(2003-10~) · PENTARCH v19.1 연금판(2008-02~)
             "원화 환노출": (0.186, -0.174)}   # 국내 ETF 전부 환노출(276000 만 H) 원화 환산 2004~, pentarch docs/104 §6 방식
 
