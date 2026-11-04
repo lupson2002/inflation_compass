@@ -146,8 +146,17 @@ def build_message() -> str:
         lines += [f"😴 오늘 매매 없음 · 다음 판단 {US_BME.rollforward(asof):%m-%d} 종가"]
 
     # 2) 보유
-    sleeve = lambda icw, pw: (f"   IC {' · '.join(f'{name(PM.IC_HOLD.get(k, k))} {dt._pct(v)}' for k, v in icw.items() if v > 1e-6)}"   # noqa: E731
-                              f" / PENTARCH {' · '.join(f'{name(k)} {dt._pct(v)}' for k, v in (pw or {}).items() if v > 1e-6) or '없음'}")
+    def sleeve(icw: dict, pw: dict | None) -> str:
+        """연금 신호 세 칸(계좌 기준): IC 35 · PENTARCH 1위 35 · 2위 30."""
+        ic = " + ".join(f"{name(PM.IC_HOLD.get(k, k))}" + (f" {dt._pct(PM.IC_WEIGHT * v)}" if v < 1 - 1e-6 else "")
+                        for k, v in sorted(icw.items(), key=lambda kv: -kv[1]) if v > 1e-6)
+        parts = [f"   ① IC {dt._pct(PM.IC_WEIGHT)}: {ic}"]
+        rank = sorted(((k, v) for k, v in (pw or {}).items() if v > 1e-6), key=lambda kv: -kv[1])
+        for i, (k, v) in enumerate(rank, 1):
+            parts.append(f"   {'②③④'[i - 1] if i <= 3 else '·'} PENTARCH {i}위 {dt._pct(PM.PENT_WEIGHT * v)}: {name(k)}")
+        if not rank:
+            parts.append("   ② PENTARCH: ⚠️ 신호 없음")
+        return "\n".join(parts)
     lines += ["", f"📦 <b>{held_d:%m-%d} 월말 결정</b> = 이번 달 보유", sleeve(ic_held["final_weights"], p_t)]
     for k, v in sorted(total.items(), key=lambda kv: -kv[1]):
         if v > 1e-6:
@@ -188,7 +197,6 @@ def build_message() -> str:
         prev_line = " · ".join(f"{name(k)} {dt._pct(v)}" for k, v in sorted(today_total.items(), key=lambda kv: -kv[1]) if v > 1e-6)
         lines += ["", f"🔭 <b>오늘({asof:%m-%d} 종가) 판단이면</b> — 매매 안 함, 다음 월말 미리보기",
                   sleeve(ic_now["final_weights"], pent["if_today"]),
-                  f"   합계 {prev_line}",
                   "   → " + ("월말 결정과 <b>같음</b>" if not diff else "월말 결정과 <b>다름</b>: " + "·".join(name(k) for k in sorted(diff)))]
 
     # 4) 알아둘 것(있을 때만)
