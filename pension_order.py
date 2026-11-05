@@ -161,7 +161,7 @@ def build_message() -> str:
 
     # 2) 보유
     def sleeve(icw: dict, pw: dict | None, d=None) -> str:
-        """연금 신호 세 칸(계좌 기준). v1.3(11-30 판단부터): IC 40 · PENTARCH 1위 32.3 · 2위 27.7, 그 전 v1.2: 35 · 35 · 30."""
+        """연금 신호 세 칸(계좌 기준). v1.3(11-30 판단부터): IC 40 · PENTARCH 1위 30 · 2위 30, 그 전 v1.2: 35 · 35 · 30."""
         wi, wp = PM.sleeve_weights(d if d is not None else PM.V13_EFFECTIVE)
         ic = " + ".join(f"{name(PM.IC_HOLD.get(k, k))}" + (f" {dt._pct(wi * v)}" if v < 1 - 1e-6 else "")
                         for k, v in sorted(icw.items(), key=lambda kv: -kv[1]) if v > 1e-6)
