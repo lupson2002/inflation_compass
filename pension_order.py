@@ -109,13 +109,13 @@ def relative_gap(prices, t5yie, vix, hy, pent: dict | None, asof) -> dict | None
     return out
 
 
-def _merge(ic: dict, pent: dict | None) -> dict:
+def _merge(ic: dict, pent: dict | None, d=None) -> dict:
     out: dict[str, float] = {}
     for k, w in ic.items():
         k = PM.IC_HOLD.get(k, k)                              # I1: IC 성장 칸 XLK 는 실제로 나스닥100(QQQ, 133690)을 산다
-        out[k] = out.get(k, 0.0) + PM.IC_WEIGHT * w
+        out[k] = out.get(k, 0.0) + PM.sleeve_weights(d if d is not None else PM.V13_EFFECTIVE)[0] * w
     for k, w in (pent or {}).items():
-        out[k] = out.get(k, 0.0) + PM.PENT_WEIGHT * w
+        out[k] = out.get(k, 0.0) + PM.sleeve_weights(d if d is not None else PM.V13_EFFECTIVE)[1] * w
     return out
 
 
@@ -137,7 +137,7 @@ def build_message() -> str:
     ic_now = PM.ic_weights_asof(prices, t5yie, vix, hy, asof) if not trade_today else ic_held
     pent = PM.load_pentarch_target()
     p_t = pent["target"] if pent else None
-    total = _merge(ic_held["final_weights"], p_t)
+    total = _merge(ic_held["final_weights"], p_t, held_d)
     name = lambda k: dt.SHORT_KR.get(k, k)                              # noqa: E731
     kst = pd.Timestamp.now(tz="Asia/Seoul")
     alerts = freshness_alerts(asof, last_expected_close(now_et), pent, _stress_end())
@@ -148,7 +148,7 @@ def build_message() -> str:
     if trade_today and alerts:                                          # docs/139 F06: 자료가 온전하지 않으면 '교체'를 내지 않는다
         lines += ["⛔ <b>매매 보류</b> — 위 경고를 해결하고 다시 실행한 뒤 교체(한국 휴장이면 다음 거래일)"]
     elif trade_today:
-        before = _merge(ic_prev["final_weights"], pent_before(pent, held_d))
+        before = _merge(ic_prev["final_weights"], pent_before(pent, held_d), prev_d)
         moves = [(k, before.get(k, 0.0), total.get(k, 0.0)) for k in sorted(set(total) | set(before), key=lambda x: -total.get(x, 0))
                  if abs(total.get(k, 0) - before.get(k, 0)) > 1e-6]
         if moves:
@@ -160,18 +160,19 @@ def build_message() -> str:
         lines += [f"😴 오늘 매매 없음 · 다음 판단 {US_BME.rollforward(asof):%m-%d} 종가"]
 
     # 2) 보유
-    def sleeve(icw: dict, pw: dict | None) -> str:
-        """연금 신호 세 칸(계좌 기준): IC 35 · PENTARCH 1위 35 · 2위 30."""
-        ic = " + ".join(f"{name(PM.IC_HOLD.get(k, k))}" + (f" {dt._pct(PM.IC_WEIGHT * v)}" if v < 1 - 1e-6 else "")
+    def sleeve(icw: dict, pw: dict | None, d=None) -> str:
+        """연금 신호 세 칸(계좌 기준). v1.3(11-30 판단부터): IC 40 · PENTARCH 1위 32.3 · 2위 27.7, 그 전 v1.2: 35 · 35 · 30."""
+        wi, wp = PM.sleeve_weights(d if d is not None else PM.V13_EFFECTIVE)
+        ic = " + ".join(f"{name(PM.IC_HOLD.get(k, k))}" + (f" {dt._pct(wi * v)}" if v < 1 - 1e-6 else "")
                         for k, v in sorted(icw.items(), key=lambda kv: -kv[1]) if v > 1e-6)
-        parts = [f"   ① IC {dt._pct(PM.IC_WEIGHT)}: {ic}"]
+        parts = [f"   ① IC {dt._pct(wi)}: {ic}"]
         rank = sorted(((k, v) for k, v in (pw or {}).items() if v > 1e-6), key=lambda kv: -kv[1])
         for i, (k, v) in enumerate(rank, 1):
-            parts.append(f"   {'②③④'[i - 1] if i <= 3 else '·'} PENTARCH {i}위 {dt._pct(PM.PENT_WEIGHT * v)}: {name(k)}")
+            parts.append(f"   {'②③④'[i - 1] if i <= 3 else '·'} PENTARCH {i}위 {dt._pct(wp * v)}: {name(k)}")
         if not rank:
             parts.append("   ② PENTARCH: ⚠️ 신호 없음")
         return "\n".join(parts)
-    lines += ["", f"📦 <b>{held_d:%m-%d} 월말 결정</b> = 이번 달 보유", sleeve(ic_held["final_weights"], p_t)]
+    lines += ["", f"📦 <b>{held_d:%m-%d} 월말 결정</b> = 이번 달 보유", sleeve(ic_held["final_weights"], p_t, held_d)]
     for k, v in sorted(total.items(), key=lambda kv: -kv[1]):
         if v > 1e-6:
             lines.append(f"• {name(k)} <b>{dt._pct(v)}</b> — {html.escape(PM.KR_ETF.get(k, k))}")
