@@ -28,8 +28,8 @@ BAD = "#b0442f"
 
 st.markdown("<style>div.block-container { padding-top: 2.6rem; }</style>", unsafe_allow_html=True)
 
-st.title("연금 운용 · IC 연금형 50 + PENTARCH 50")
-st.caption("레버리지 없음(연금계좌 기준). 매월 말 50/50 으로 다시 맞춘다.")
+st.title(f"연금 운용 · {PM.PENSION_VERSION} (IC {PM.IC_WEIGHT:.0%} + PENTARCH {PM.PENT_WEIGHT:.0%})")
+st.caption(f"레버리지 없음(연금계좌 기준). 매월 말 IC {PM.IC_WEIGHT:.0%} · PENTARCH {PM.PENT_WEIGHT:.0%}(1위 35 · 2위 30)로 다시 맞춘다.")
 
 prices, t5yie = backtest.load_data()
 vix = yf.download("^VIX", start="2000-01-01", auto_adjust=True, progress=False)["Close"].squeeze().reindex(prices.index).ffill()
@@ -55,7 +55,7 @@ with c2:
         body = "<div style='font-size:14px;color:#b0442f'>PENTARCH 신호 없음 — pentarch 크론(05:00) 확인</div>"
     else:
         warn = f"<div style='font-size:11px;color:#b0442f'>⚠️ 신호가 {pent['stale_days']}일 지났다</div>" if pent["stale"] else ""
-        body = (f"<div style='font-size:12px;color:#52564d;margin:4px 0 8px'>v18.3 신호 · 레버리지 ETF 제외 · {pent['effective_since']} 부터 · "
+        body = (f"<div style='font-size:12px;color:#52564d;margin:4px 0 8px'>{pent.get('model', '')} 신호 · 레버리지 ETF 제외 · {pent['effective_since']} 부터 · "
                 f"데이터 {pent['data_asof']} ({pent['source']})</div>"
                 f"<div style='font-size:18px;font-weight:700;color:#bb6b2c'>{PM.weights_str(pent['target'])}</div>{warn}")
     st.markdown(
@@ -80,7 +80,7 @@ def _mix(d: pd.DataFrame, w: dict, cost_bp: float = 30) -> pd.Series:
     return pd.Series(out, index=d.index)
 
 
-curves = {"IC 50 + PENTARCH 50 (확정)": _mix(bt, {"IC": .5, "PENT": .5}), "IC 연금형 단독": bt["IC"],
+curves = {f"IC {PM.IC_WEIGHT:.0%} + PENTARCH {PM.PENT_WEIGHT:.0%} (확정)": _mix(bt, {"IC": PM.IC_WEIGHT, "PENT": PM.PENT_WEIGHT}), "IC 연금형 단독": bt["IC"],
           "PENTARCH 비레버리지 단독": bt["PENT"], "IC 35 + BAA 30 + PENTARCH 35": _mix(bt, {"IC": .35, "BAA": .3, "PENT": .35}),
           "IC 25 + BAA 45 + PENTARCH 30 (인출 직전형)": _mix(bt, {"IC": .25, "BAA": .45, "PENT": .3})}
 fig = make_subplots(rows=2, cols=1, shared_xaxes=True, row_heights=[0.7, 0.3], vertical_spacing=0.06)
