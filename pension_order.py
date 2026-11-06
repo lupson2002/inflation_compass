@@ -1,5 +1,6 @@
 """연금 주문서(IC 일일 텔레그램 통합, 2026-10-31 간결판; 2026-11-01 PENTARCH 시장 위험 국면 표시 — docs/118 W2; 2026-11-02 VRP 보험료 — docs/121 V1; 2026-11-02 연금 전략 v1.0 = IC 연금형 v2.0(G1S) + PENTARCH v19.0; 같은 날 v1.1 = IC v2.1(I3 히스테리시스) + PENTARCH v19.1(P7 글로벌 패닉), v1.2 = IC v2.2(A2 디스인플레이션 칸)) — IC 연금형 35% + PENTARCH 비레버리지 65%(1위 35 · 2위 30) 합계 목표와 그 국내 ETF(2026-10-31)를 한국 장 시작 전에 텔레그램으로 보낸다(2026-10-30).
 
+일반계좌 레버리지 V1 판단 포함(2026-11-06, pentarch docs/148).
 평일 08:00 KST cron. 미국 장 마감(서머타임 05:00 / 표준시 06:00 KST) 뒤, PENTARCH 연금 신호(06:40 재수집 실행)가 끝난 뒤.
 - 연금은 월 1회 매매: 미국 월말 거래일 종가로 정한 비중을 다음 한 달 들고 간다.
   미국 월말 종가가 막 반영된 아침(= 그 다음 한국 거래일)에만 '오늘 교체' 를 띄우고, 나머지 날은 '매매 없음' + 지금 들고 있을 비중.
@@ -18,6 +19,7 @@ import pandas as pd
 import backtest
 import daily_telegram as dt
 import pension_baa as P
+import pension_leverage as LV
 import pension_mix as PM
 from nyse_calendar import NYSE_BDAY, NYSE_BME
 
@@ -159,6 +161,14 @@ def build_message() -> str:
     else:
         lines += [f"😴 오늘 매매 없음 · 다음 판단 {US_BME.rollforward(asof):%m-%d} 종가"]
 
+    # 1-1) 일반계좌 레버리지 판단(pentarch docs/148 V1) — 월 1회, 입력이 온전치 않으면 대출하지 않는다
+    macro_pit, shiller = LV.load_sources()
+    lev_now = LV.decide(total, held_d, macro_pit, shiller)
+    lev_prev = None
+    if trade_today:
+        lev_prev = LV.decide(_merge(ic_prev["final_weights"], pent_before(pent, held_d), prev_d), prev_d, macro_pit, shiller)
+    lines += ["", *LV.order_lines(lev_now, lev_prev, trade_today, bool(alerts), held_d)]
+
     # 2) 보유
     def sleeve(icw: dict, pw: dict | None, d=None) -> str:
         """연금 신호 세 칸(계좌 기준). v1.3(11-30 판단부터): IC 40 · PENTARCH 1위 30 · 2위 30, 그 전 v1.2: 35 · 35 · 30."""
@@ -213,6 +223,9 @@ def build_message() -> str:
         lines += ["", f"🔭 <b>오늘({asof:%m-%d} 종가) 판단이면</b> — 매매 안 함, 다음 월말 미리보기",
                   sleeve(ic_now["final_weights"], pent["if_today"]),
                   "   → " + ("월말 결정과 <b>같음</b>" if not diff else "월말 결정과 <b>다름</b>: " + "·".join(name(k) for k in sorted(diff)))]
+        lev_today = LV.decide(today_total, asof, macro_pit, shiller)
+        if lev_today.excess is not None:
+            lines.append(f"   → 레버리지 V1: 기대 초과 {lev_today.excess * 100:+.2f}% → {'대출' if lev_today.on else '대출 없음'}(참고, 월말에만 판단)")
 
     # 4) 알아둘 것(있을 때만)
     notes = []
