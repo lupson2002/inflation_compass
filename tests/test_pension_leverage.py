@@ -32,9 +32,9 @@ def test_low_rate_equity_turns_on():
     assert d.on and abs(d.excess - (.042 + .024 - .001)) < 1e-12
 
 
-def test_uses_lagged_cape_observation():
+def test_uses_latest_effective_cape_observation():
     x, p = L.read_inputs(D, _macro(), _shiller())
-    assert p is None and x.ey == .0246
+    assert p is None and x.ey == .0243      # 3차 감사 B-01: parquet 인덱스에 공시 시차 45일 포함, 추가 지연 없음
 
 
 def test_stale_rates_fail_safe():
@@ -69,3 +69,24 @@ def test_order_lines_transitions():
     assert "대출 운용 중" in "\n".join(L.order_lines(on, None, False, False, D))
     assert "보류" in "\n".join(L.order_lines(on, off, True, True, D))
     assert "판정 불가" in "\n".join(L.order_lines(L.Decision(False, None, "x"), None, True, False, D))
+
+
+def test_kr_session_rolls_over_holiday_and_dc_cap():
+    import datetime as d
+    import pension_order as O
+    assert O.first_kr_session(pd.Timestamp("2026-04-30")) == d.date(2026, 5, 4)      # 5-1 근로자의 날(+주말)
+    assert O.first_kr_session(pd.Timestamp("2026-11-30")) == d.date(2026, 12, 1)
+    assert O.first_kr_session(pd.Timestamp("2026-12-30")) > d.date(2026, 12, 31)
+    w = O.dc_irp_weights({"XLE": .4, "GUNR": .3, "BIL": .3})
+    assert w is None
+    w = O.dc_irp_weights({"QQQ": .7, "SPY": .3})
+    assert abs(w["QQQ"] - .49) < 1e-9 and abs(w["BIL"] - .3) < 1e-9 and abs(sum(w.values()) - 1) < 1e-9
+
+
+def test_mix_position_uses_decision_month_sleeves(monkeypatch):
+    import pension_baa as P
+    import pension_mix as M
+    monkeypatch.setattr(P, "ic_pension_weights", lambda *a: {"final_weights": {"XLE": 1.0}})
+    monkeypatch.setattr(M, "load_pentarch_target", lambda: {"effective_since": "2026-11-02", "target": {"GUNR": .4615, "BIL": .5385}})
+    w = M.mix_position(None, None, None, None)["weights"]
+    assert abs(w["XLE"] - .35) < 1e-9 and abs(w["BIL"] - .65 * .5385) < 1e-9

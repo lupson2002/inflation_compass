@@ -4,3 +4,7 @@ streamlit.log
 .env
 daily_telegram.log
 pct_telegram.log
+
+/inflation_compass.db
+pension_order.log
+data/last_order_sent.json

@@ -11,9 +11,13 @@
 """
 from __future__ import annotations
 
+import datetime as dtm
 import html
+import json
 import sys
+from pathlib import Path
 
+import holidays
 import pandas as pd
 
 import backtest
@@ -26,12 +30,51 @@ from nyse_calendar import NYSE_BDAY, NYSE_BME
 US_BME = NYSE_BME      # 2026-11-04: 연방 공휴일 달력은 성금요일·12-31 대체휴일 월말을 틀린다(1995~ 8건, 다음 2027-12-31)
 
 
-def _macro(prices: pd.DataFrame) -> tuple[pd.Series, pd.Series]:
-    import yfinance as yf
-    vix = yf.download("^VIX", start="2000-01-01", auto_adjust=True, progress=False)["Close"].squeeze()
-    hy = pd.read_csv("https://fred.stlouisfed.org/graph/fredgraph.csv?id=BAA10Y&cosd=1996-12-31", na_values=".").dropna()
-    hy = hy.set_index(pd.to_datetime(hy["observation_date"]))["BAA10Y"]
-    return vix.reindex(prices.index).ffill(), hy.reindex(prices.index).ffill()
+def _macro(prices: pd.DataFrame) -> tuple[pd.Series, pd.Series, list[str]]:
+    """VIX·BAA10Y. 외부 수집 실패 시 pentarch PIT 저장본으로 계속하고 경고(2026-11-07 3차 감사 B-09)."""
+    notes: list[str] = []
+    try:
+        import yfinance as yf
+        vix = yf.download("^VIX", start="2000-01-01", auto_adjust=True, progress=False)["Close"].squeeze()
+        if vix.dropna().empty:
+            raise ValueError("빈 응답")
+    except Exception as e:
+        vix = pd.read_parquet(P.MACRO_PIT, columns=["VIXCLS"])["VIXCLS"].astype(float).dropna()
+        notes.append(f"⚠️ VIX 수집 실패 → 저장본 사용({type(e).__name__})")
+    try:
+        hy = pd.read_csv("https://fred.stlouisfed.org/graph/fredgraph.csv?id=BAA10Y&cosd=1996-12-31", na_values=".").dropna()
+        hy = hy.set_index(pd.to_datetime(hy["observation_date"]))["BAA10Y"]
+    except Exception as e:
+        hy = pd.read_parquet(P.MACRO_PIT, columns=["BAA10Y"])["BAA10Y"].astype(float).dropna()
+        notes.append(f"⚠️ BAA10Y 수집 실패 → 저장본 사용({type(e).__name__})")
+    return vix.reindex(prices.index).ffill(), hy.reindex(prices.index).ffill(), notes
+
+
+_KR_HOLIDAYS = holidays.KR()
+
+
+def kr_open(d: dtm.date) -> bool:
+    """한국 증시 개장일(주말·공휴일·12-31 휴장). 임시 휴장은 모른다."""
+    return d.weekday() < 5 and d not in _KR_HOLIDAYS and (d.month, d.day) != (12, 31)
+
+
+def first_kr_session(held_d: pd.Timestamp) -> dtm.date:
+    """미국 월말 종가(held_d, 한국 시각 그다음 날 아침 확정) 뒤 첫 한국 개장일."""
+    d = held_d.date() + dtm.timedelta(days=1)
+    while not kr_open(d):
+        d += dtm.timedelta(days=1)
+    return d
+
+
+def dc_irp_weights(total: dict[str, float], cap: float = 0.70) -> dict[str, float] | None:
+    """DC·IRP 위험자산 한도 70%(3차 감사 B-03). 넘으면 위험자산을 비례 축소하고 초과분을 안전자산에. 안 넘으면 None."""
+    safe = {"BIL", "SHY", "IEF", "TLT"}
+    risk = sum(v for k, v in total.items() if k not in safe)
+    if risk <= cap + 1e-9:
+        return None
+    out = {k: (v * cap / risk if k not in safe else v) for k, v in total.items()}
+    out["BIL"] = out.get("BIL", 0.0) + (risk - cap)
+    return out
 
 
 def _month_ends(idx: pd.DatetimeIndex) -> pd.DatetimeIndex:
@@ -128,7 +171,7 @@ def build_message() -> str:
     if prices.index[-1].date() >= now_et.date() and (now_et.hour, now_et.minute) < (16, 15):
         prices = prices.iloc[:-1]                                       # 아직 끝나지 않은 미국 장의 임시 행
         t5yie = t5yie.loc[:prices.index[-1]]
-    vix, hy = _macro(prices)
+    vix, hy, macro_notes = _macro(prices)
     asof = prices.index[-1]
     trade_today = asof == US_BME.rollforward(asof)                     # 마지막 미국 종가가 그 달 마지막 거래일
     me = _month_ends(prices.index)
@@ -144,18 +187,34 @@ def build_message() -> str:
     kst = pd.Timestamp.now(tz="Asia/Seoul")
     alerts = freshness_alerts(asof, last_expected_close(now_et), pent, _stress_end())
     alerts += [f"🚨 {x} — IC 가 v2.2 와 다른 규칙이 됨, 매매 보류" for x in P.input_problems(asof)]   # docs/139 F06
-    lines = [f"🏦 <b>{PM.PENSION_VERSION}</b> {kst:%m-%d}({'월화수목금토일'[kst.weekday()]}) · 미국 {asof:%m-%d} 종가", *alerts, ""]
+    # 3차 감사 B-09①: 미국 월말 뒤 한국이 쉬면 첫 개장일 아침에 교체를 다시 띄운다(그날 asof 는 이미 새 달)
+    exec_day = first_kr_session(held_d)
+    carry = (not trade_today) and kst.date() == exec_day
+    trade_now = trade_today or carry
+    today_closed = trade_today and not kr_open(kst.date())
+    lines = [f"🏦 <b>{PM.PENSION_VERSION}</b> {kst:%m-%d}({'월화수목금토일'[kst.weekday()]}) · 미국 {asof:%m-%d} 종가", *alerts, *macro_notes, ""]
 
     # 1) 오늘 할 일
-    if trade_today and alerts:                                          # docs/139 F06: 자료가 온전하지 않으면 '교체'를 내지 않는다
+    if trade_now and alerts:                                            # docs/139 F06: 자료가 온전하지 않으면 '교체'를 내지 않는다
         lines += ["⛔ <b>매매 보류</b> — 위 경고를 해결하고 다시 실행한 뒤 교체(한국 휴장이면 다음 거래일)"]
-    elif trade_today:
-        before = _merge(ic_prev["final_weights"], pent_before(pent, held_d), prev_d)
+    elif trade_now:
+        before_pent = pent.get("prev_target") if carry and pent else pent_before(pent, held_d)
+        before = _merge(ic_prev["final_weights"], before_pent, prev_d)
         moves = [(k, before.get(k, 0.0), total.get(k, 0.0)) for k in sorted(set(total) | set(before), key=lambda x: -total.get(x, 0))
                  if abs(total.get(k, 0) - before.get(k, 0)) > 1e-6]
+        if today_closed:
+            head = f"🔁 <b>{exec_day:%m-%d} 교체</b> (오늘 한국 휴장)"
+        elif carry:
+            head = f"🔁 <b>오늘 교체</b> ({held_d:%m-%d} 미국 월말 결정, 한국 휴장으로 이월)"
+        else:
+            head = "🔁 <b>오늘 교체</b>"
         if moves:
-            lines += ["🔁 <b>오늘 교체</b> (한국 휴장이면 다음 거래일)",
-                      *[f"   {name(k)} {dt._pct(x)} → <b>{dt._pct(y)}</b>" for k, x, y in moves]]
+            lines += [head, *[f"   {name(k)} {dt._pct(x)} → <b>{dt._pct(y)}</b>" for k, x, y in moves]]
+            held_codes = {PM.IC_HOLD.get(k, k) for k, _x, y in moves if y > 1e-6}
+            if "GUNR" in held_codes or "DBC" in held_codes:
+                lines.append("   ⏰ 276000: 09시대 호가 공백·스프레드 큼(docs/133) — 10:00~14:00 지정가")
+            if "GLD" in held_codes:
+                lines.append("   ⏰ 411060: 국제 금 대비 괴리율(김치 프리미엄) 확인 후 매수")
         else:
             lines += ["✅ 월말 판단 끝 · <b>바꿀 것 없음</b>"]
     else:
@@ -165,9 +224,10 @@ def build_message() -> str:
     macro_pit, shiller = LV.load_sources()
     lev_now = LV.decide(total, held_d, macro_pit, shiller)
     lev_prev = None
-    if trade_today:
-        lev_prev = LV.decide(_merge(ic_prev["final_weights"], pent_before(pent, held_d), prev_d), prev_d, macro_pit, shiller)
-    lines += ["", *LV.order_lines(lev_now, lev_prev, trade_today, bool(alerts), held_d)]
+    if trade_now:
+        bp = pent.get("prev_target") if carry and pent else pent_before(pent, held_d)
+        lev_prev = LV.decide(_merge(ic_prev["final_weights"], bp, prev_d), prev_d, macro_pit, shiller)
+    lines += ["", *LV.order_lines(lev_now, lev_prev, trade_now, bool(alerts), held_d)]
 
     # 2) 보유
     def sleeve(icw: dict, pw: dict | None, d=None) -> str:
@@ -186,6 +246,11 @@ def build_message() -> str:
     for k, v in sorted(total.items(), key=lambda kv: -kv[1]):
         if v > 1e-6:
             lines.append(f"• {name(k)} <b>{dt._pct(v)}</b> — {html.escape(PM.KR_ETF.get(k, k))}")
+
+    dc = dc_irp_weights(total)
+    if dc:
+        lines += ["", "🏛 <b>DC·IRP</b> (위험자산 70% 한도, 안전자산 인정 여부는 증권사 확인)",
+                  "   " + " · ".join(f"{name(k)} {dt._pct(v)}" for k, v in sorted(dc.items(), key=lambda kv: -kv[1]) if v > 1e-6)]
 
     # 3) 경제를 어떻게 보나
     g, i = ic_held.get("growth_on"), ic_held.get("inflation_on")
@@ -267,12 +332,27 @@ def build_message() -> str:
     return "\n".join(lines)
 
 
+SENT_STATE = Path(__file__).resolve().parent / "data" / "last_order_sent.json"
+
+
 def main() -> None:
-    msg = build_message()
+    today = pd.Timestamp.now(tz="Asia/Seoul")
+    if "--catchup" in sys.argv:                                         # 재부팅 보충: 평일 08시 이후, 오늘 아직 안 보냈을 때만
+        sent = json.loads(SENT_STATE.read_text()).get("date") if SENT_STATE.exists() else None
+        if today.weekday() >= 5 or today.hour < 8 or today.hour >= 22 or sent == f"{today:%Y-%m-%d}":
+            return
+    try:
+        msg = build_message()
+    except Exception as e:                                              # 3차 감사 B-09②: 조용히 죽지 않는다
+        if "--dry" in sys.argv:
+            raise
+        dt.send_message(f"⛔ <b>연금 주문서 생성 실패</b> {today:%m-%d} — {html.escape(type(e).__name__)}: {html.escape(str(e))[:200]}\n매매 보류, pension_order.log 확인")
+        raise
     if "--dry" in sys.argv:
         print(msg)
         return
     dt.send_message(msg)
+    SENT_STATE.write_text(json.dumps({"date": f"{today:%Y-%m-%d}"}))
 
 
 if __name__ == "__main__":

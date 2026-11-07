@@ -81,13 +81,15 @@ def mix_position(prices, t5yie, vix, baa10y) -> dict:
     import pension_baa as P
     ic = P.ic_pension_weights(prices, t5yie, vix, baa10y)
     pent = load_pentarch_target()
+    # 2026-11-07 3차 감사 B-04: 보유 목표(비중 v1.2 [35, 30])에 v1.3 슬리브 비중을 곱하면 안 된다 — 그 목표를 정한 달의 비중으로
+    wi, wp = sleeve_weights((pent or {}).get("effective_since") or V13_EFFECTIVE)
     total: dict[str, float] = {}
     for k, w in ic["final_weights"].items():
         k = IC_HOLD.get(k, k)
-        total[k] = total.get(k, 0.0) + IC_WEIGHT * w
+        total[k] = total.get(k, 0.0) + wi * w
     if pent is not None:
         for k, w in pent["target"].items():
-            total[k] = total.get(k, 0.0) + PENT_WEIGHT * w
+            total[k] = total.get(k, 0.0) + wp * w
     return {"ic": ic, "pentarch": pent, "weights": total}
 
 

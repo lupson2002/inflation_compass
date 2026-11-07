@@ -1,7 +1,7 @@
 """일반계좌 레버리지 판단층 V1 (pentarch docs/148, 2026-11-06 사용자 확정).
 
 매 월말 판단일에 계좌 비중의 '현금 대비 기대 초과수익(밸류 블록)' 을 계산해 대출 가산금리를 넘으면 대출한다.
-- 주식류 = 이익수익률(1/CAPE, 한 달 늦춤) + 기대 물가(T10YIE) − 단기금리(DTB3)
+- 주식류 = 이익수익률(1/CAPE, shiller.parquet 은 이미 공시 시차 45일 반영) + 기대 물가(T10YIE) − 단기금리(DTB3)
 - IEF·TLT = 10년 금리 − 단기금리 · SHY = 2년 금리 − 단기금리 · 금·원자재 = 기대 물가 − 단기금리 · 현금 0
 입력이 없거나 오래됐으면 **대출하지 않는다**(판정 보류). 판단은 월 1회, 월중에는 바꾸지 않는다.
 """
@@ -66,9 +66,9 @@ def read_inputs(d, macro: pd.DataFrame, shiller: pd.Series) -> tuple[Inputs | No
             return None, f"{col} 자료가 {d:%m-%d} 기준으로 오래됨"
         vals[col] = float(s.iloc[-1])
     obs = shiller.dropna().loc[:d]
-    if len(obs) < 2 or (d - obs.index[-1]).days > MAX_CAPE_AGE_DAYS:
+    if obs.empty or (d - obs.index[-1]).days > MAX_CAPE_AGE_DAYS:
         return None, f"CAPE 자료가 {d:%m-%d} 기준으로 오래됨"
-    return Inputs(ey=float(obs.iloc[-2]), be=vals["T10YIE"], y10=vals["DGS10"], y2=vals["DGS2"], bill=vals["DTB3"]), None
+    return Inputs(ey=float(obs.iloc[-1]), be=vals["T10YIE"], y10=vals["DGS10"], y2=vals["DGS2"], bill=vals["DTB3"]), None
 
 
 def decide(weights: dict[str, float] | None, d, macro: pd.DataFrame | None, shiller: pd.Series | None) -> Decision:
@@ -116,6 +116,8 @@ def order_lines(now: Decision, prev: Decision | None, trade_today: bool, blocked
     else:
         act = "대출 없음 · 할 일 없음"
     lines = [head, f"   {act}", f"   {state}"]
+    if now.on or was_on:
+        lines.append("   ⚠️ 일반계좌 세금: 아래 국내 상장 ETF 는 매매차익 15.4%·금융소득종합과세 대상 — 해외 상장 ETF(22%)·금은 KRX 금현물 검토, 세무 확인")
     if prev is not None and prev.problem:
         lines.append(f"   ⚠️ 직전 달 판정 불가({prev.problem}) — 실제 대출 잔액과 대조")
     return lines
